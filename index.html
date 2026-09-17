@@ -956,13 +956,16 @@
         }
       }
 
-      // 2. Пользовательский триггер TikFinity (Custom Action / Event "SPIN_WHEEL")
-      if (msg.event === "SPIN_WHEEL" || msg.name === "SPIN_WHEEL" || (msg.data && msg.data.name === "SPIN_WHEEL")) {
-        const sender = (msg.data && (msg.data.nickname || msg.data.uniqueId)) || null;
-        spinWheel(null, sender ? { sender } : null);
-        return;
-      }
-    }
+      // 2. Проверка подарка Галактика или триггера SPIN_WHEEL
+const giftTitle = msg?.data?.giftName || msg?.data?.gift?.name || msg?.data?.name || "";
+const isGalaxy = giftTitle.toLowerCase().includes("galax") || giftTitle.toLowerCase().includes("галакт");
+const isSpinTrigger = msg.event === "SPIN_WHEEL" || msg.name === "SPIN_WHEEL" || (msg.data && msg.data.name === "SPIN_WHEEL");
+
+if (isGalaxy || isSpinTrigger) {
+  const sender = (msg.data && (msg.data.nickname || msg.data.uniqueId)) || null;
+  spinWheel(null, sender ? { sender } : null);
+  return;
+}
 
     /**
      * =========================================================================
