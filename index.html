@@ -3,1052 +3,312 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Колесо фортуны / Рулетка для стрима (TikTok Live & OBS)</title>
+  <title>Рулетка для стрима TikTok Live</title>
   <style>
-    /* ==========================================================================
-       1. СТИЛИ И ПРОЗРАЧНОСТЬ ДЛЯ OBS / TIKTOK LIVE STUDIO (Browser Source)
-       ========================================================================== */
     * {
       box-sizing: border-box;
       margin: 0;
       padding: 0;
       user-select: none;
-      -webkit-user-select: none;
     }
-
     body {
       background: transparent;
       overflow: hidden;
       width: 100vw;
       height: 100vh;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
       display: flex;
       flex-direction: column;
       align-items: center;
       justify-content: center;
-      position: relative;
+      font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
     }
-
-    /* Контейнер виджета рулетки */
-    #wheel-widget-container {
+    #wheel-container {
       position: relative;
+      width: 500px;
+      height: 500px;
       display: flex;
-      flex-direction: column;
       align-items: center;
       justify-content: center;
-      filter: drop-shadow(0 15px 35px rgba(0, 0, 0, 0.75));
     }
-
-    /* Холст HTML5 Canvas для отрисовки колеса */
     #wheel-canvas {
-      display: block;
-      transform-origin: center center;
+      width: 480px;
+      height: 480px;
+      filter: drop-shadow(0 0 20px rgba(0,0,0,0.6));
     }
-
-    /* Указатель-стрелка сверху по центру */
-    #wheel-pointer {
+    #pointer {
       position: absolute;
-      top: -10px;
+      top: 0px;
       left: 50%;
       transform: translateX(-50%);
-      width: 44px;
-      height: 52px;
-      z-index: 20;
-      transform-origin: 50% 12px;
-      transition: transform 0.06s cubic-bezier(0.18, 0.89, 0.32, 1.28);
-      filter: drop-shadow(0 4px 10px rgba(0, 0, 0, 0.8)) drop-shadow(0 0 12px #ff0055);
+      width: 36px;
+      height: 46px;
+      z-index: 10;
+      filter: drop-shadow(0 4px 6px rgba(0,0,0,0.5));
     }
-
-    #wheel-pointer svg {
-      width: 100%;
-      height: 100%;
-      display: block;
-    }
-
-    /* ==========================================================================
-       2. ВСПЛЫВАЮЩАЯ ПЛАШКА РЕЗУЛЬТАТА (Анимация на 5 секунд)
-       ========================================================================== */
-    #result-banner {
+    #center-hub {
       position: absolute;
-      bottom: 24px;
-      left: 50%;
-      transform: translateX(-50%) translateY(30px) scale(0.9);
-      opacity: 0;
-      pointer-events: none;
-      z-index: 40;
-      min-width: 380px;
-      max-width: 90vw;
-      background: linear-gradient(135deg, rgba(17, 24, 39, 0.96), rgba(15, 23, 42, 0.94));
-      border: 2px solid #38bdf8;
-      box-shadow: 0 0 35px rgba(56, 189, 248, 0.5), inset 0 0 20px rgba(56, 189, 248, 0.2);
-      border-radius: 20px;
-      padding: 18px 24px;
-      text-align: center;
-      color: #ffffff;
-      transition: all 0.45s cubic-bezier(0.34, 1.56, 0.64, 1);
-    }
-
-    #result-banner.visible {
-      opacity: 1;
-      transform: translateX(-50%) translateY(0) scale(1);
-    }
-
-    #result-badge {
-      display: inline-block;
-      padding: 4px 14px;
-      font-size: 11px;
-      font-weight: 800;
-      text-transform: uppercase;
-      letter-spacing: 1.5px;
-      border-radius: 9999px;
-      background: rgba(56, 189, 248, 0.2);
-      color: #38bdf8;
-      border: 1px solid rgba(56, 189, 248, 0.4);
-      margin-bottom: 8px;
-    }
-
-    #result-title {
-      font-size: 26px;
-      font-weight: 900;
-      line-height: 1.2;
-      letter-spacing: 0.5px;
-      margin-bottom: 6px;
-      text-shadow: 0 2px 10px rgba(0, 0, 0, 0.7);
-    }
-
-    #result-subtext {
-      font-size: 14px;
-      font-weight: 600;
-      color: #94a3b8;
-      margin-bottom: 10px;
-    }
-
-    #result-timer-bar-wrap {
-      width: 100%;
-      height: 4px;
-      background: rgba(255, 255, 255, 0.15);
-      border-radius: 2px;
-      overflow: hidden;
-      margin-top: 10px;
-    }
-
-    #result-timer-bar {
-      height: 100%;
-      width: 100%;
-      background: linear-gradient(90deg, #38bdf8, #818cf8, #f43f5e);
-      border-radius: 2px;
-      transition: width 5s linear;
-    }
-
-    /* ==========================================================================
-       3. ПАНЕЛЬ ТЕСТИРОВАНИЯ И СТАТУСА (Скрываемая)
-       ========================================================================== */
-    #test-controls-panel {
-      position: fixed;
-      bottom: 12px;
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      background: rgba(15, 23, 42, 0.85);
-      backdrop-filter: blur(10px);
-      -webkit-backdrop-filter: blur(10px);
-      border: 1px solid rgba(255, 255, 255, 0.12);
-      border-radius: 12px;
-      padding: 8px 14px;
-      z-index: 50;
-      transition: transform 0.3s ease, opacity 0.3s ease;
-      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
-    }
-
-    #test-controls-panel.hidden {
-      opacity: 0;
-      pointer-events: none;
-      transform: translateY(30px);
-    }
-
-    .btn-test {
-      background: rgba(255, 255, 255, 0.1);
-      color: #f1f5f9;
-      border: 1px solid rgba(255, 255, 255, 0.2);
-      padding: 6px 14px;
-      border-radius: 8px;
-      font-size: 12px;
-      font-weight: 600;
-      cursor: pointer;
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      transition: all 0.2s ease;
-    }
-
-    .btn-test:hover {
-      background: rgba(255, 255, 255, 0.2);
-      border-color: rgba(255, 255, 255, 0.4);
-      transform: translateY(-1px);
-    }
-
-    .btn-test.btn-accent {
-      background: linear-gradient(135deg, #ec4899, #8b5cf6);
-      border: 1px solid #f472b6;
-      color: #ffffff;
-      box-shadow: 0 0 12px rgba(236, 72, 153, 0.4);
-    }
-
-    .btn-test.btn-accent:hover {
-      box-shadow: 0 0 18px rgba(236, 72, 153, 0.7);
-    }
-
-    .status-badge {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      font-size: 11px;
-      font-weight: 600;
-      color: #94a3b8;
-      padding-right: 8px;
-      border-right: 1px solid rgba(255, 255, 255, 0.15);
-    }
-
-    .status-dot {
-      width: 8px;
-      height: 8px;
+      width: 70px;
+      height: 70px;
+      background: radial-gradient(circle, #ffeaa7 0%, #d63031 100%);
+      border: 4px solid #fff;
       border-radius: 50%;
-      background: #ef4444;
-      box-shadow: 0 0 6px #ef4444;
-      transition: background 0.3s, box-shadow 0.3s;
-    }
-
-    .status-dot.connected {
-      background: #22c55e;
-      box-shadow: 0 0 8px #22c55e;
-    }
-
-    /* Кнопка быстрого вызова панели если скрыта */
-    #toggle-panel-btn {
-      position: fixed;
-      bottom: 12px;
-      right: 12px;
-      background: rgba(15, 23, 42, 0.6);
-      border: 1px solid rgba(255, 255, 255, 0.1);
-      color: #94a3b8;
-      width: 28px;
-      height: 28px;
-      border-radius: 6px;
+      box-shadow: 0 0 15px rgba(0,0,0,0.5);
       display: flex;
       align-items: center;
       justify-content: center;
-      cursor: pointer;
-      font-size: 13px;
-      z-index: 55;
-      transition: all 0.2s;
+      color: #fff;
+      font-weight: bold;
+      font-size: 20px;
+      pointer-events: none;
     }
-
-    #toggle-panel-btn:hover {
-      color: #ffffff;
-      background: rgba(15, 23, 42, 0.9);
-      border-color: rgba(255, 255, 255, 0.3);
+    #status-bar {
+      margin-top: 15px;
+      padding: 6px 14px;
+      border-radius: 20px;
+      background: rgba(0, 0, 0, 0.75);
+      color: #fff;
+      font-size: 13px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: #e74c3c;
+    }
+    .dot.connected {
+      background: #2ecc71;
+    }
+    #controls {
+      margin-top: 10px;
+      display: flex;
+      gap: 10px;
+    }
+    .btn {
+      background: #e67e22;
+      color: white;
+      border: none;
+      padding: 8px 16px;
+      border-radius: 6px;
+      font-weight: bold;
+      cursor: pointer;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+    }
+    .btn:hover {
+      background: #d35400;
+    }
+    /* Режим оверлея: прячем статус и кнопки при добавлении ?overlay=true */
+    body.overlay-mode #status-bar,
+    body.overlay-mode #controls {
+      display: none !important;
     }
   </style>
-<script src="/_aistudio-iframe.js?v=2c34bde1"></script></head>
+</head>
 <body>
 
-  <!-- ==========================================================================
-       КОНТЕЙНЕР РУЛЕТКИ И СТРЕЛКИ
-       ========================================================================== -->
-  <div id="wheel-widget-container">
-    <!-- Верхняя неоновая стрелка-указатель (Pointer) -->
-    <div id="wheel-pointer">
-      <svg viewBox="0 0 44 52" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <!-- Тень и неоновое свечение стрелки -->
-        <path d="M22 50L6 14C4 10 7 5 11 5H33C37 5 40 10 38 14L22 50Z" fill="url(#pointer-grad)" stroke="#ffffff" stroke-width="2"/>
-        <!-- Центральный кристалл / заклепка -->
-        <circle cx="22" cy="14" r="5" fill="#ffffff" filter="drop-shadow(0 0 4px #ff0055)"/>
-        <defs>
-          <linearGradient id="pointer-grad" x1="22" y1="5" x2="22" y2="50" gradientUnits="userSpaceOnUse">
-            <stop stop-color="#ff2a6d"/>
-            <stop offset="1" stop-color="#990033"/>
-          </linearGradient>
-        </defs>
-      </svg>
-    </div>
-
-    <!-- Холст для рисования колеса -->
-    <canvas id="wheel-canvas" width="560" height="560"></canvas>
-
-    <!-- Всплывающая плашка выпавшего результата -->
-    <div id="result-banner">
-      <div id="result-badge">ВЫПАЛ СЕКТОР</div>
-      <div id="result-title">-30 МИН</div>
-      <div id="result-subtext">Изменение таймера: -1800 сек</div>
-      <div id="result-timer-bar-wrap">
-        <div id="result-timer-bar"></div>
-      </div>
-    </div>
+  <div id="wheel-container">
+    <svg id="pointer" viewBox="0 0 40 50">
+      <path d="M 20 50 L 5 10 A 15 15 0 0 1 35 10 Z" fill="#ff7675" stroke="#ffffff" stroke-width="3" />
+    </svg>
+    <canvas id="wheel-canvas" width="800" height="800"></canvas>
+    <div id="center-hub">★</div>
   </div>
 
-  <!-- ==========================================================================
-       ПАНЕЛЬ УПРАВЛЕНИЯ ДЛЯ СТРИМЕРА (Скрывается через ?overlay=true)
-       ========================================================================== -->
-  <div id="test-controls-panel">
-    <div class="status-badge" title="Статус WebSocket TikFinity (ws://localhost:21213/)">
-      <span class="status-dot" id="ws-status-dot"></span>
-      <span id="ws-status-text">TikFinity: Поиск...</span>
-    </div>
-    <button class="btn-test btn-accent" id="btn-spin-random" title="Нажмите или пробел/F8">
-      <span>🎡</span> Крутить тест
-    </button>
-    <button class="btn-test" id="btn-spin-galaxy" title="Эмуляция подарка 'Галактика'">
-      <span>🌌</span> Тест "Галактика"
-    </button>
-    <button class="btn-test" id="btn-sound-toggle" title="Вкл/выкл звуки">
-      <span id="sound-icon">🔊</span> Звук
-    </button>
-    <button class="btn-test" id="btn-hide-ui" title="Скрыть панель (можно вернуть кнопкой справа)">
-      Скрыть
-    </button>
+  <div id="status-bar">
+    <div class="dot" id="ws-dot"></div>
+    <span id="ws-text">TikFinity: Поиск (:21213)</span>
   </div>
 
-  <!-- Кнопка вызова панели -->
-  <div id="toggle-panel-btn" title="Показать/скрыть панель">⚙</div>
+  <div id="controls">
+    <button class="btn" id="btn-spin" onclick="spinWheel()">Крутить (Тест)</button>
+  </div>
 
-  <!-- ==========================================================================
-       4. JAVASCRIPT-ДВИЖОК РУЛЕТКИ: ФИЗИКА, СИНТЕЗАТОР ЗВУКА, TIKFINITY WEBSOCKET
-       ========================================================================== -->
   <script>
-    /**
-     * =========================================================================
-     * КОНФИГУРАЦИЯ И ПАРАМЕТРЫ 10 СЕКТОРОВ
-     * =========================================================================
-     */
-    const SECTORS = [
-      {
-        id: 1,
-        label: "-30 мин",
-        subtext: "Изменение таймера: -1800 сек",
-        timerChangeSec: -1800,
-        type: "timer",
-        color: "#dc2626",      // Красный
-        colorDark: "#991b1b",
-        glowColor: "#ef4444"
-      },
-      {
-        id: 2,
-        label: "+20 мин",
-        subtext: "Изменение таймера: +1200 сек",
-        timerChangeSec: 1200,
-        type: "timer",
-        color: "#16a34a",      // Зеленый
-        colorDark: "#166534",
-        glowColor: "#22c55e"
-      },
-      {
-        id: 3,
-        label: "-15 мин",
-        subtext: "Изменение таймера: -900 сек",
-        timerChangeSec: -900,
-        type: "timer",
-        color: "#ea580c",      // Оранжевый
-        colorDark: "#9a3412",
-        glowColor: "#f97316"
-      },
-      {
-        id: 4,
-        label: "15 отжиманий",
-        subtext: "Физический интерактив",
-        timerChangeSec: 0,
-        type: "action",
-        color: "#7c3aed",      // Фиолетовый
-        colorDark: "#5b21b6",
-        glowColor: "#8b5cf6"
-      },
-      {
-        id: 5,
-        label: "ДЖЕКПОТ -1 ЧАС",
-        subtext: "СУПЕР-ПРИЗ! Изменение: -3600 сек",
-        timerChangeSec: -3600,
-        type: "jackpot",
-        color: "#eab308",      // Золотой/Желтый
-        colorDark: "#ca8a04",
-        glowColor: "#fde047"
-      },
-      {
-        id: 6,
-        label: "+10 мин",
-        subtext: "Изменение таймера: +600 сек",
-        timerChangeSec: 600,
-        type: "timer",
-        color: "#65a30d",      // Салатовый
-        colorDark: "#3f6212",
-        glowColor: "#84cc16"
-      },
-      {
-        id: 7,
-        label: "Планка 45 сек",
-        subtext: "Физический интерактив",
-        timerChangeSec: 0,
-        type: "action",
-        color: "#2563eb",      // Синий
-        colorDark: "#1e40af",
-        glowColor: "#3b82f6"
-      },
-      {
-        id: 8,
-        label: "-10 мин",
-        subtext: "Изменение таймера: -600 сек",
-        timerChangeSec: -600,
-        type: "timer",
-        color: "#db2777",      // Розовый
-        colorDark: "#9d174d",
-        glowColor: "#ec4899"
-      },
-      {
-        id: 9,
-        label: "+40 мин",
-        subtext: "Изменение таймера: +2400 сек",
-        timerChangeSec: 2400,
-        type: "timer",
-        color: "#059669",      // Темно-зеленый
-        colorDark: "#064e3b",
-        glowColor: "#10b981"
-      },
-      {
-        id: 10,
-        label: "20 приседаний",
-        subtext: "Физический интерактив",
-        timerChangeSec: 0,
-        type: "action",
-        color: "#0891b2",      // Бирюзовый/Серый
-        colorDark: "#155e75",
-        glowColor: "#06b6d4"
-      }
+    // Проверка режима оверлея в URL (?overlay=true)
+    if (window.location.search.includes('overlay=true')) {
+      document.body.classList.add('overlay-mode');
+    }
+
+    // 10 секторов
+    const sectors = [
+      { label: "-30 МИНУТ", color: "#e74c3c", timerDelta: -1800 },
+      { label: "+20 МИНУТ", color: "#2ecc71", timerDelta: 1200 },
+      { label: "20 ОТЖИМАНИЙ", color: "#3498db", timerDelta: 0 },
+      { label: "-1 ЧАС (ДЖЕКПОТ)", color: "#f39c12", timerDelta: -3600 },
+      { label: "+15 МИНУТ", color: "#27ae60", timerDelta: 900 },
+      { label: "ПЛАНКА 1 МИН", color: "#9b59b6", timerDelta: 0 },
+      { label: "-10 МИНУТ", color: "#d35400", timerDelta: -600 },
+      { label: "+30 МИНУТ", color: "#1abc9c", timerDelta: 1800 },
+      { label: "30 ПРИСЕДАНИЙ", color: "#34495e", timerDelta: 0 },
+      { label: "-20 МИНУТ", color: "#c0392b", timerDelta: -1200 }
     ];
 
-    const TOTAL_SECTORS = SECTORS.length;
-    const ARC_SIZE = (2 * Math.PI) / TOTAL_SECTORS; // 36 градусов на сектор
-
-    // Настройки приложения и URL-параметры
-    const urlParams = new URLSearchParams(window.location.search);
-    const CONFIG = {
-      // Порт локального WebSocket TikFinity
-      wsPort: parseInt(urlParams.get("port") || "21213", 10),
-      // Имя подарка для автоматического вращения
-      targetGiftName: (urlParams.get("gift") || "galaxy").toLowerCase(),
-      // Скрывать панель по умолчанию если передан параметр ?overlay=true или ?hide=1
-      overlayMode: urlParams.has("overlay") || urlParams.has("hide"),
-      // Длительность вращения колеса (5 - 7 секунд)
-      spinDurationMs: 6200,
-      // Число полных оборотов (5 - 8 оборотов)
-      minFullSpins: 6,
-      maxFullSpins: 8,
-      soundEnabled: true
-    };
-
-    /**
-     * =========================================================================
-     * 2. ГЕНЕРАЦИЯ ЗВУКОВ ЧЕРЕЗ WEB AUDIO API (Без внешних файлов)
-     * =========================================================================
-     */
-    class SoundEngine {
-      constructor() {
-        this.ctx = null;
-        this.enabled = true;
-      }
-
-      initContext() {
-        if (!this.ctx) {
-          const AudioContextClass = window.AudioContext || window.webkitAudioContext;
-          if (AudioContextClass) {
-            this.ctx = new AudioContextClass();
-          }
-        }
-        if (this.ctx && this.ctx.state === "suspended") {
-          this.ctx.resume();
-        }
-      }
-
-      // Звук механического щелчка указателя при пересечении штырька сектора
-      playTick(speedFactor = 1) {
-        if (!this.enabled) return;
-        this.initContext();
-        if (!this.ctx) return;
-
-        try {
-          const now = this.ctx.currentTime;
-          const osc = this.ctx.createOscillator();
-          const gain = this.ctx.createGain();
-
-          // Резонансный клик с резким затуханием (щелчок трещотки)
-          osc.type = "triangle";
-          const baseFreq = 850 + Math.random() * 200;
-          osc.frequency.setValueAtTime(baseFreq, now);
-          osc.frequency.exponentialRampToValueAtTime(120, now + 0.025);
-
-          gain.gain.setValueAtTime(0.18, now);
-          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.025);
-
-          osc.connect(gain);
-          gain.connect(this.ctx.destination);
-
-          osc.start(now);
-          osc.stop(now + 0.028);
-        } catch (e) {
-          // Игнорируем ограничения автовоспроизведения браузера до первого клика
-        }
-      }
-
-      // Торжественные фанфары при остановке рулетки на выпавшем секторе
-      playWinSound(isJackpot = false) {
-        if (!this.enabled) return;
-        this.initContext();
-        if (!this.ctx) return;
-
-        try {
-          const now = this.ctx.currentTime;
-          // Гармонический победный аккорд (C5, E5, G5, C6)
-          const notes = isJackpot 
-            ? [523.25, 659.25, 783.99, 1046.50, 1318.51] // Мажорная пентатоника для ДЖЕКПОТА
-            : [523.25, 659.25, 783.99, 1046.50];
-
-          notes.forEach((freq, idx) => {
-            const osc = this.ctx.createOscillator();
-            const gain = this.ctx.createGain();
-
-            osc.type = isJackpot ? "sawtooth" : "triangle";
-            osc.frequency.setValueAtTime(freq, now + idx * 0.09);
-
-            gain.gain.setValueAtTime(0.001, now);
-            gain.gain.setValueAtTime(0.16, now + idx * 0.09);
-            gain.gain.exponentialRampToValueAtTime(0.0001, now + idx * 0.09 + 0.9);
-
-            osc.connect(gain);
-            gain.connect(this.ctx.destination);
-
-            osc.start(now + idx * 0.09);
-            osc.stop(now + idx * 0.09 + 0.95);
-          });
-        } catch (e) {}
-      }
-    }
-
-    const sound = new SoundEngine();
-
-    /**
-     * =========================================================================
-     * 3. МАТЕМАТИКА И ФИЗИКА ВРАЩЕНИЯ CANVAS
-     * =========================================================================
-     */
     const canvas = document.getElementById("wheel-canvas");
     const ctx = canvas.getContext("2d");
-    const pointerElem = document.getElementById("wheel-pointer");
-    const resultBanner = document.getElementById("result-banner");
-    const resultBadge = document.getElementById("result-badge");
-    const resultTitle = document.getElementById("result-title");
-    const resultSubtext = document.getElementById("result-subtext");
-    const resultTimerBar = document.getElementById("result-timer-bar");
-
-    // Поддержка четких Retina/4K дисплеев
-    const CANVAS_SIZE = 560;
-    const dpr = window.devicePixelRatio || 1;
-    canvas.width = CANVAS_SIZE * dpr;
-    canvas.height = CANVAS_SIZE * dpr;
-    canvas.style.width = CANVAS_SIZE + "px";
-    canvas.style.height = CANVAS_SIZE + "px";
-    ctx.scale(dpr, dpr);
-
-    const CENTER = CANVAS_SIZE / 2;
-    const RADIUS = (CANVAS_SIZE / 2) - 24; // Отступ для неонового свечения и заклепок
-
-    // Текущее состояние вращения
-    let currentRotation = 0;      // Текущий угол в радианах
+    const totalSectors = sectors.length;
+    const arc = (2 * Math.PI) / totalSectors;
+    let currentAngle = 0;
     let isSpinning = false;
-    let spinStartTime = 0;
-    let startRotation = 0;
-    let targetRotation = 0;
-    let lastTickSector = -1;
-    let bannerTimeoutId = null;
 
-    /**
-     * Функция замедления (Ease-Out Quartic):
-     * Обеспечивает быстрый старт, долгое плавное торможение и драматичное
-     * подкрадывание к победному сектору на последних секундах.
-     */
-    function easeOutQuart(t) {
-      return 1 - Math.pow(1 - t, 4);
-    }
-
-    /**
-     * Определение текущего сектора под указателем.
-     * Стрелка находится строго сверху по центру:
-     * Угол указателя = 270 градусов (3 * PI / 2 или -PI / 2).
-     */
-    const POINTER_ANGLE = 1.5 * Math.PI;
-
-    function getSectorUnderPointer(rotationRad) {
-      // Нормализуем разницу углов в диапазон [0, 2 * PI)
-      const diff = (POINTER_ANGLE - rotationRad) % (2 * Math.PI);
-      const positiveAngle = (diff + 2 * Math.PI) % (2 * Math.PI);
-      const index = Math.floor(positiveAngle / ARC_SIZE) % TOTAL_SECTORS;
-      return index;
-    }
-
-    /**
-     * =========================================================================
-     * 4. ОТРИСОВКА КОЛЕСА (НЕОН, ГРАДИЕНТЫ, ТЕНИ, НАДПИСИ)
-     * =========================================================================
-     */
-    function drawWheel(rotation) {
-      ctx.clearRect(0, 0, CANVAS_SIZE, CANVAS_SIZE);
-
-      ctx.save();
-      ctx.translate(CENTER, CENTER);
-      ctx.rotate(rotation);
-
-      // Внешний металлический/темный обод с неоновой подсветкой
-      ctx.save();
-      ctx.beginPath();
-      ctx.arc(0, 0, RADIUS + 12, 0, 2 * Math.PI);
-      ctx.fillStyle = "#0f172a";
-      ctx.shadowColor = "#38bdf8";
-      ctx.shadowBlur = 22;
-      ctx.fill();
-      ctx.lineWidth = 4;
-      ctx.strokeStyle = "#38bdf8";
-      ctx.stroke();
-      ctx.restore();
-
-      // Отрисовка 10 секторов
-      for (let i = 0; i < TOTAL_SECTORS; i++) {
-        const sector = SECTORS[i];
-        const startAngle = i * ARC_SIZE;
-        const endAngle = (i + 1) * ARC_SIZE;
-
-        ctx.save();
-        ctx.beginPath();
-        ctx.moveTo(0, 0);
-        ctx.arc(0, 0, RADIUS, startAngle, endAngle);
-        ctx.closePath();
-
-        // Радиальный градиент сектора для объема
-        const radGrad = ctx.createRadialGradient(0, 0, 40, 0, 0, RADIUS);
-        radGrad.addColorStop(0, sector.color);
-        radGrad.addColorStop(1, sector.colorDark);
-        ctx.fillStyle = radGrad;
-        ctx.fill();
-
-        // Контрастная белая обводка сектора
-        ctx.lineWidth = 2.5;
-        ctx.strokeStyle = "rgba(255, 255, 255, 0.4)";
-        ctx.stroke();
-
-        // Отрисовка текста сектора вдоль радиуса
-        ctx.save();
-        const midAngle = startAngle + ARC_SIZE / 2;
-        ctx.rotate(midAngle);
-        ctx.textAlign = "right";
-        ctx.textBaseline = "middle";
-
-        // Если это Джекпот — особый золотой эффект
-        if (sector.type === "jackpot") {
-          ctx.font = "900 17px -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
-          ctx.fillStyle = "#ffffff";
-          ctx.shadowColor = "#fde047";
-          ctx.shadowBlur = 12;
-        } else {
-          ctx.font = "bold 16px -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
-          ctx.fillStyle = "#ffffff";
-          ctx.shadowColor = "rgba(0, 0, 0, 0.9)";
-          ctx.shadowBlur = 8;
-        }
-
-        // Позиционирование надписи
-        ctx.fillText(sector.label, RADIUS - 28, 0);
-        ctx.restore();
-
-        ctx.restore();
-      }
-
-      // Внешние неоновые заклепки/пины по периметру обода (места щелчков)
-      for (let i = 0; i < TOTAL_SECTORS; i++) {
-        const pinAngle = i * ARC_SIZE;
-        const pinX = Math.cos(pinAngle) * (RADIUS + 4);
-        const pinY = Math.sin(pinAngle) * (RADIUS + 4);
-
-        ctx.save();
-        ctx.beginPath();
-        ctx.arc(pinX, pinY, 5.5, 0, 2 * Math.PI);
-        ctx.fillStyle = "#ffffff";
-        ctx.shadowColor = "#38bdf8";
-        ctx.shadowBlur = 10;
-        ctx.fill();
-        ctx.lineWidth = 1.5;
-        ctx.strokeStyle = "#0f172a";
-        ctx.stroke();
-        ctx.restore();
-      }
-
-      // Центральная неоновая заглушка (Центр колеса)
-      ctx.save();
-      ctx.beginPath();
-      ctx.arc(0, 0, 46, 0, 2 * Math.PI);
-      const centerGrad = ctx.createRadialGradient(0, 0, 8, 0, 0, 46);
-      centerGrad.addColorStop(0, "#1e293b");
-      centerGrad.addColorStop(0.7, "#0f172a");
-      centerGrad.addColorStop(1, "#334155");
-      ctx.fillStyle = centerGrad;
-      ctx.shadowColor = "#38bdf8";
-      ctx.shadowBlur = 20;
-      ctx.fill();
-      ctx.lineWidth = 3.5;
-      ctx.strokeStyle = "#38bdf8";
-      ctx.stroke();
-
-      // Маленькая центральная жемчужина
-      ctx.beginPath();
-      ctx.arc(0, 0, 16, 0, 2 * Math.PI);
-      ctx.fillStyle = "#ffffff";
-      ctx.shadowColor = "#ff0055";
-      ctx.shadowBlur = 12;
-      ctx.fill();
-      ctx.restore();
-
-      ctx.restore();
-    }
-
-    /**
-     * =========================================================================
-     * 5. ЗАПУСК ВРАЩЕНИЯ И ФИЗИЧЕСКИЙ ЦИКЛ
-     * =========================================================================
-     */
-    function spinWheel(forcedTargetIndex = null, triggerInfo = null) {
-      if (isSpinning) {
-        console.log("Колесо уже вращается, команда поставлена в очередь или проигнорирована");
-        return;
-      }
-
-      sound.initContext();
-
-      // Скрываем прошлую плашку результата
-      hideResultBanner();
-
-      // Выбираем сектор остановки
-      let targetIndex;
-      if (forcedTargetIndex !== null && forcedTargetIndex >= 0 && forcedTargetIndex < TOTAL_SECTORS) {
-        targetIndex = forcedTargetIndex;
-      } else {
-        targetIndex = Math.floor(Math.random() * TOTAL_SECTORS);
-      }
-
-      isSpinning = true;
-      spinStartTime = performance.now();
-      startRotation = currentRotation % (2 * Math.PI);
-
-      // Число полных оборотов (5 - 8)
-      const fullSpins = CONFIG.minFullSpins + Math.floor(Math.random() * (CONFIG.maxFullSpins - CONFIG.minFullSpins + 1));
-
-      // Случайное небольшое смещение внутри сектора для реализма (но строго без заступа за границу!)
-      // Допустимый разброс внутри 36 градусов — ±30% от центра сектора
-      const innerJitter = (Math.random() - 0.5) * 0.6 * ARC_SIZE;
-      const targetSectorCenter = (targetIndex + 0.5) * ARC_SIZE + innerJitter;
-
-      /**
-       * МАТЕМАТИЧЕСКАЯ ФОРМУЛА СОВПАДЕНИЯ:
-       * Чтобы сектор targetIndex оказался точно под POINTER_ANGLE (270 градусов),
-       * целевой угол колеса targetRotation должен удовлетворять условию:
-       * (POINTER_ANGLE - targetRotation) % 2PI == targetSectorCenter.
-       * Следовательно: targetRotation = POINTER_ANGLE - targetSectorCenter + fullSpins * 2PI.
-       */
-      const baseStopAngle = POINTER_ANGLE - targetSectorCenter;
-      // Приводим к движению вперед относительно текущего угла startRotation
-      let deltaAngle = (baseStopAngle - startRotation) % (2 * Math.PI);
-      if (deltaAngle <= 0) {
-        deltaAngle += 2 * Math.PI;
-      }
-
-      targetRotation = startRotation + deltaAngle + (fullSpins * 2 * Math.PI);
-
-      lastTickSector = getSectorUnderPointer(startRotation);
-
-      console.log(`[Рулетка] Запуск вращения. Выбран сектор #${targetIndex + 1}: "${SECTORS[targetIndex].label}"`);
-
-      // Запуск цикла анимации
-      requestAnimationFrame((timestamp) => animateSpin(timestamp, targetIndex, triggerInfo));
-    }
-
-    function animateSpin(timestamp, targetIndex, triggerInfo) {
-      const elapsed = timestamp - spinStartTime;
-      const progress = Math.min(elapsed / CONFIG.spinDurationMs, 1);
-      const ease = easeOutQuart(progress);
-
-      currentRotation = startRotation + (targetRotation - startRotation) * ease;
-
-      // Проверяем смену сектора под указателем для звука трещотки и отклонения стрелки
-      const currentSector = getSectorUnderPointer(currentRotation);
-      if (currentSector !== lastTickSector) {
-        lastTickSector = currentSector;
-        // Звуковой щелчок
-        sound.playTick();
-        // Физическое отклонение стрелки указателя
-        deflectPointer();
-      }
-
-      drawWheel(currentRotation);
-
-      if (progress < 1) {
-        requestAnimationFrame((ts) => animateSpin(ts, targetIndex, triggerInfo));
-      } else {
-        // Остановка вращения
-        isSpinning = false;
-        currentRotation = targetRotation;
-        drawWheel(currentRotation);
-
-        // Итоговая строгая проверка сектора
-        const finalSectorIdx = getSectorUnderPointer(currentRotation);
-        const winningSector = SECTORS[finalSectorIdx];
-
-        // Звук победы / фанфар
-        sound.playWinSound(winningSector.type === "jackpot");
-
-        // Показ плашки результата на 5 секунд
-        showResultBanner(winningSector, triggerInfo);
-      }
-    }
-
-    // Небольшое физическое отклонение стрелки указателя при прохождении штырьков
-    let pointerResetTimer = null;
-    function deflectPointer() {
-      pointerElem.style.transform = "translateX(-50%) rotate(-18deg)";
-      clearTimeout(pointerResetTimer);
-      pointerResetTimer = setTimeout(() => {
-        pointerElem.style.transform = "translateX(-50%) rotate(0deg)";
-      }, 70);
-    }
-
-    /**
-     * =========================================================================
-     * 6. ВСПЛЫВАЮЩАЯ ПЛАШКА РЕЗУЛЬТАТА (5 СЕКУНД)
-     * =========================================================================
-     */
-    function showResultBanner(sector, triggerInfo = null) {
-      if (bannerTimeoutId) {
-        clearTimeout(bannerTimeoutId);
-      }
-
-      resultTitle.textContent = sector.label;
-      resultSubtext.textContent = sector.subtext;
-
-      // Стилизуем плашку под сектор
-      resultBanner.style.borderColor = sector.glowColor;
-      resultBanner.style.boxShadow = `0 0 35px ${sector.glowColor}88, inset 0 0 15px ${sector.glowColor}33`;
-      resultBadge.style.color = sector.glowColor;
-      resultBadge.style.borderColor = sector.glowColor;
-      resultBadge.style.background = `${sector.glowColor}22`;
-
-      if (triggerInfo && triggerInfo.sender) {
-        resultBadge.textContent = `ПОДАРОК ОТ @${triggerInfo.sender}`;
-      } else {
-        resultBadge.textContent = sector.type === "jackpot" ? "🔥 СУПЕР ДЖЕКПОТ 🔥" : "ВЫПАЛ СЕКТОР";
-      }
-
-      // Анимация таймер-бара на 5 секунд
-      resultTimerBar.style.transition = "none";
-      resultTimerBar.style.width = "100%";
-      resultBanner.classList.add("visible");
-
-      setTimeout(() => {
-        resultTimerBar.style.transition = "width 5s linear";
-        resultTimerBar.style.width = "0%";
-      }, 50);
-
-      // Автоматическое скрытие через 5 секунд
-      bannerTimeoutId = setTimeout(() => {
-        hideResultBanner();
-      }, 5000);
-    }
-
-    function hideResultBanner() {
-      resultBanner.classList.remove("visible");
-      if (bannerTimeoutId) {
-        clearTimeout(bannerTimeoutId);
-        bannerTimeoutId = null;
-      }
-    }
-
-    /**
-     * =========================================================================
-     * 7. ИНТЕГРАЦИЯ С TIKFINITY WEBSOCKET (ws://localhost:21213/)
-     * =========================================================================
-     */
-    const wsDot = document.getElementById("ws-status-dot");
-    const wsText = document.getElementById("ws-status-text");
-    let tikFinitySocket = null;
-    let reconnectInterval = null;
-
-    function initTikFinityWebSocket() {
-      const wsUrl = `ws://localhost:${CONFIG.wsPort}/`;
-
+    // Синтез звука тика трещотки (без MP3 файлов)
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    function playClickSound() {
       try {
-        tikFinitySocket = new WebSocket(wsUrl);
+        if (audioCtx.state === 'suspended') audioCtx.resume();
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = "triangle";
+        osc.frequency.setValueAtTime(600, audioCtx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(120, audioCtx.currentTime + 0.04);
+        gain.gain.setValueAtTime(0.3, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.04);
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start();
+        osc.stop(audioCtx.currentTime + 0.04);
+      } catch (e) {}
+    }
 
-        tikFinitySocket.onopen = () => {
-          console.log(`[TikFinity] Успешное подключение к ${wsUrl}`);
-          wsDot.classList.add("connected");
-          wsText.textContent = `TikFinity: Подключен (: ${CONFIG.wsPort})`;
-          if (reconnectInterval) {
-            clearInterval(reconnectInterval);
-            reconnectInterval = null;
-          }
-        };
+    function drawWheel() {
+      const centerX = canvas.width / 2;
+      const centerY = canvas.height / 2;
+      const radius = canvas.width / 2 - 20;
 
-        tikFinitySocket.onmessage = (event) => {
-          try {
-            const msg = JSON.parse(event.data);
-            handleTikFinityMessage(msg);
-          } catch (err) {
-            // Обработка текстовых строковых команд
-            if (event.data === "SPIN_WHEEL" || event.data === "spin") {
-              spinWheel();
-            }
-          }
-        };
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-        tikFinitySocket.onclose = () => {
-          wsDot.classList.remove("connected");
-          wsText.textContent = `TikFinity: Поиск (: ${CONFIG.wsPort})`;
-          attemptReconnect();
-        };
+      for (let i = 0; i < totalSectors; i++) {
+        const angle = currentAngle + i * arc;
+        ctx.beginPath();
+        ctx.fillStyle = sectors[i].color;
+        ctx.moveTo(centerX, centerY);
+        ctx.arc(centerX, centerY, radius, angle, angle + arc);
+        ctx.lineTo(centerX, centerY);
+        ctx.fill();
+        ctx.stroke();
+        ctx.strokeStyle = "rgba(255,255,255,0.4)";
+        ctx.lineWidth = 3;
 
-        tikFinitySocket.onerror = () => {
-          // Ошибка соединения (например, TikFinity еще не открыт)
-          wsDot.classList.remove("connected");
-        };
-      } catch (e) {
-        attemptReconnect();
+        // Текст сектора
+        ctx.save();
+        ctx.translate(centerX, centerY);
+        ctx.rotate(angle + arc / 2);
+        ctx.textAlign = "right";
+        ctx.fillStyle = "#ffffff";
+        ctx.font = "bold 26px sans-serif";
+        ctx.shadowColor = "rgba(0,0,0,0.8)";
+        ctx.shadowBlur = 6;
+        ctx.fillText(sectors[i].label, radius - 35, 10);
+        ctx.restore();
       }
     }
 
-    function attemptReconnect() {
-      if (!reconnectInterval) {
-        reconnectInterval = setInterval(() => {
-          if (!tikFinitySocket || tikFinitySocket.readyState === WebSocket.CLOSED) {
-            initTikFinityWebSocket();
+    drawWheel();
+
+    // Запуск вращения
+    let lastTickSector = -1;
+    function spinWheel() {
+      if (isSpinning) return;
+      isSpinning = true;
+
+      const fullSpins = 5 + Math.floor(Math.random() * 4); // 5-8 полных оборотов
+      const stopAngle = Math.random() * 2 * Math.PI;
+      const totalRotation = fullSpins * 2 * Math.PI + stopAngle;
+      const startAngle = currentAngle;
+      const duration = 6500; // 6.5 секунд вращения
+      const startTime = performance.now();
+
+      function animate(time) {
+        const elapsed = time - startTime;
+        const progress = Math.min(elapsed / duration, 1);
+        
+        // Плавное замедление (ease-out-cubic)
+        const easeOut = 1 - Math.pow(1 - progress, 3);
+        currentAngle = startAngle + totalRotation * easeOut;
+        drawWheel();
+
+        // Проверка тика трещотки
+        const pointerAngle = (3 * Math.PI / 2 - (currentAngle % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI);
+        const currentSectorIdx = Math.floor(pointerAngle / arc);
+        if (currentSectorIdx !== lastTickSector) {
+          playClickSound();
+          lastTickSector = currentSectorIdx;
+        }
+
+        if (progress < 1) {
+          requestAnimationFrame(animate);
+        } else {
+          isSpinning = false;
+          // Определение победившего сектора
+          const winningSector = sectors[currentSectorIdx];
+          console.log("Выпало:", winningSector.label);
+
+          // Отправка команды в TikFinity (если привязан таймер)
+          if (ws && ws.readyState === WebSocket.OPEN && winningSector.timerDelta !== 0) {
+            ws.send(JSON.stringify({
+              action: "adjustTimer",
+              seconds: winningSector.timerDelta
+            }));
           }
-        }, 3500);
-      }
-    }
-
-    /**
-     * Обработка событий подарков и кастомных эвентов TikFinity
-     */
-    function handleTikFinityMessage(msg) {
-      console.log("[TikFinity Event]", msg);
-
-      // 1. Стандартный формат события TikFinity Gift
-      if (msg.event === "gift" || (msg.data && msg.data.giftName)) {
-        const giftData = msg.data || msg;
-        const giftName = String(giftData.giftName || "").trim().toLowerCase();
-        const sender = giftData.nickname || giftData.uniqueId || "Зритель";
-
-        // Проверяем подарок "Галактика" (или "Galaxy")
-        if (giftName.includes("galaxy") || giftName.includes("галактик") || giftData.giftId === 5655) {
-          console.log(`[TikFinity] Получен подарок Галактика от ${sender}! Запуск рулетки...`);
-          spinWheel(null, { sender, gift: "Галактика" });
-          return;
         }
       }
 
-      // 2. Пользовательский триггер TikFinity (Custom Action / Event "SPIN_WHEEL")
-      if (msg.event === "SPIN_WHEEL" || msg.name === "SPIN_WHEEL" || (msg.data && msg.data.name === "SPIN_WHEEL")) {
-        const sender = (msg.data && (msg.data.nickname || msg.data.uniqueId)) || null;
-        spinWheel(null, sender ? { sender } : null);
-        return;
-      }
+      requestAnimationFrame(animate);
     }
 
-    /**
-     * =========================================================================
-     * 8. УПРАВЛЕНИЕ: GALAXY TEST, POSTMESSAGE, ГОРЯЧИЕ КЛАВИШИ, ТЕСТОВАЯ ПАНЕЛЬ
-     * =========================================================================
-     */
-    // 1. PostMessage для тестов из родительских окон / iframe
-    window.addEventListener("message", (event) => {
-      if (!event.data) return;
-      if (event.data === "spin" || event.data.action === "spin") {
-        const target = typeof event.data.targetIndex === "number" ? event.data.targetIndex : null;
-        spinWheel(target, event.data.triggerInfo || null);
-      }
-    });
-
-    // 2. Горячие клавиши для ручного теста стримером: Space или F8
+    // Слушатель пробела
     window.addEventListener("keydown", (e) => {
-      // Игнорируем если фокус в input/textarea
-      if (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA") return;
-
-      if (e.code === "Space" || e.key === " " || e.key === "F8") {
-        e.preventDefault();
+      if (e.code === "Space" || e.key === " ") {
         spinWheel();
       }
     });
 
-    // 3. Обработчики кнопок тестовой панели
-    const btnSpinRandom = document.getElementById("btn-spin-random");
-    const btnSpinGalaxy = document.getElementById("btn-spin-galaxy");
-    const btnSoundToggle = document.getElementById("btn-sound-toggle");
-    const soundIcon = document.getElementById("sound-icon");
-    const btnHideUi = document.getElementById("btn-hide-ui");
-    const togglePanelBtn = document.getElementById("toggle-panel-btn");
-    const testPanel = document.getElementById("test-controls-panel");
+    // Связь с WebSocket TikFinity
+    let ws = null;
+    function initWebSocket() {
+      const dot = document.getElementById("ws-dot");
+      const text = document.getElementById("ws-text");
 
-    btnSpinRandom.addEventListener("click", () => {
-      spinWheel();
-    });
+      try {
+        ws = new WebSocket("ws://localhost:21213/");
 
-    btnSpinGalaxy.addEventListener("click", () => {
-      // Эмуляция подарка Галактика
-      handleTikFinityMessage({
-        event: "gift",
-        data: {
-          giftName: "Galaxy",
-          giftId: 5655,
-          nickname: "TikTok_Fan",
-          repeatCount: 1
-        }
-      });
-    });
+        ws.onopen = () => {
+          dot.classList.add("connected");
+          text.innerText = "TikFinity: Подключено";
+        };
 
-    btnSoundToggle.addEventListener("click", () => {
-      sound.enabled = !sound.enabled;
-      soundIcon.textContent = sound.enabled ? "🔊" : "🔇";
-      btnSoundToggle.title = sound.enabled ? "Звук включен" : "Звук выключен";
-    });
+        ws.onmessage = (event) => {
+          try {
+            const data = JSON.parse(event.data);
+            const giftName = data?.data?.giftName || data?.data?.gift?.name || data?.data?.name || data?.name || "";
+            const eventName = data?.event || "";
 
-    btnHideUi.addEventListener("click", () => {
-      testPanel.classList.add("hidden");
-    });
+            // Проверяем Галактику (ENG/RU) или команду SPIN_WHEEL
+            const isGalaxy = giftName.toLowerCase().includes("galax") || giftName.toLowerCase().includes("галакт");
+            const isSpinTrigger = eventName === "SPIN_WHEEL" || giftName === "SPIN_WHEEL";
 
-    togglePanelBtn.addEventListener("click", () => {
-      testPanel.classList.toggle("hidden");
-    });
+            if (isGalaxy || isSpinTrigger) {
+              spinWheel();
+            }
+          } catch (err) {}
+        };
 
-    // Если в URL передан ?overlay=true, сразу скрываем тестовую панель
-    if (CONFIG.overlayMode) {
-      testPanel.classList.add("hidden");
+        ws.onclose = () => {
+          dot.classList.remove("connected");
+          text.innerText = "TikFinity: Отключен (Повтор...)";
+          setTimeout(initWebSocket, 3000);
+        };
+
+        ws.onerror = () => {
+          ws.close();
+        };
+      } catch (err) {
+        setTimeout(initWebSocket, 3000);
+      }
     }
 
-    /**
-     * =========================================================================
-     * 9. ИНИЦИАЛИЗАЦИЯ И ПЕРВАЯ ОТРИСОВКА
-     * =========================================================================
-     */
-    drawWheel(currentRotation);
-    initTikFinityWebSocket();
-
-    // Разрешаем AudioContext по любому клику пользователя на странице
-    window.addEventListener("click", () => sound.initContext(), { once: true });
-    window.addEventListener("keydown", () => sound.initContext(), { once: true });
-
-    // Экспорт глобальной функции для вызова из консоли OBS
-    window.spinWheel = spinWheel;
-    window.SECTORS = SECTORS;
+    initWebSocket();
   </script>
 </body>
 </html>
