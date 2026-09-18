@@ -916,46 +916,77 @@
      */
     const wsDot = document.getElementById("ws-status-dot");
     const wsText = document.getElementById("ws-status-text");
+    let tfSocket = null;
     let tikFinitySocket = null;
     let reconnectInterval = null;
 
     function initTikFinityWebSocket() {
-      const wsUrl = `ws://localhost:${CONFIG.wsPort}/`;
+      const wsUrl = `ws://localhost:${CONFIG.wsPort || 21213}/`;
 
       try {
-        tikFinitySocket = new WebSocket(wsUrl);
+        tfSocket = new WebSocket(wsUrl);
+        tikFinitySocket = tfSocket;
+        window.tfSocket = tfSocket;
 
-        tikFinitySocket.onopen = () => {
-          console.log(`[TikFinity] Успешное подключение к ${wsUrl}`);
-          wsDot.classList.add("connected");
-          wsText.textContent = `TikFinity: Подключен (: ${CONFIG.wsPort})`;
+        tfSocket.onopen = () => {
+          console.log("Подключено к TikFinity");
+          if (wsDot) wsDot.classList.add("connected");
+          if (wsText) wsText.textContent = `TikFinity: Подключен (: ${CONFIG.wsPort || 21213})`;
           if (reconnectInterval) {
             clearInterval(reconnectInterval);
             reconnectInterval = null;
           }
         };
 
-        tikFinitySocket.onmessage = (event) => {
+        tfSocket.onmessage = (event) => {
           try {
-            const msg = JSON.parse(event.data);
-            handleTikFinityMessage(msg);
+            const data = JSON.parse(event.data);
+            // Реагирует на ЛЮБОЙ подарок или команду из TikFinity
+            if (data.event === "gift" || data.name === "SPIN_WHEEL" || data.event === "SPIN_WHEEL") {
+              const sender = (data.data && (data.data.nickname || data.data.uniqueId)) || data.nickname || data.uniqueId || null;
+              const gift = (data.data && data.data.giftName) || data.giftName || "Подарок TikFinity";
+              spinWheel(null, sender ? { sender, gift } : null);
+              return;
+            }
+
+            // Реагирует на команду !spin в чате TikFinity
+            const rawComment = (data.comment || data.text || (data.data && (data.data.comment || data.data.text)) || "").trim().toLowerCase();
+            if (
+              data.event === "chat" ||
+              data.event === "comment" ||
+              data.name === "chat" ||
+              rawComment.includes("!spin") ||
+              rawComment.includes("!рулетка")
+            ) {
+              if (
+                rawComment === "!spin" ||
+                rawComment.startsWith("!spin ") ||
+                rawComment === "!рулетка" ||
+                rawComment.startsWith("!рулетка ")
+              ) {
+                const sender = (data.data && (data.data.nickname || data.data.uniqueId)) || data.nickname || data.uniqueId || "Чат";
+                spinWheel(null, { sender, gift: "Команда: " + rawComment });
+                return;
+              }
+            }
           } catch (err) {
-            // Обработка текстовых строковых команд
-            if (event.data === "SPIN_WHEEL" || event.data === "spin") {
+            console.error(err);
+            // Поддержка текстовых строковых команд
+            if (event.data === "SPIN_WHEEL" || event.data === "spin" || event.data === "!spin") {
               spinWheel();
             }
           }
         };
 
-        tikFinitySocket.onclose = () => {
-          wsDot.classList.remove("connected");
-          wsText.textContent = `TikFinity: Поиск (: ${CONFIG.wsPort})`;
+        tfSocket.onclose = () => {
+          if (wsDot) wsDot.classList.remove("connected");
+          if (wsText) wsText.textContent = `TikFinity: Поиск (: ${CONFIG.wsPort || 21213})`;
           attemptReconnect();
         };
 
-        tikFinitySocket.onerror = () => {
+        tfSocket.onerror = (err) => {
           // Ошибка соединения (например, TikFinity еще не открыт)
-          wsDot.classList.remove("connected");
+          if (wsDot) wsDot.classList.remove("connected");
         };
       } catch (e) {
         attemptReconnect();
@@ -965,38 +996,10 @@
     function attemptReconnect() {
       if (!reconnectInterval) {
         reconnectInterval = setInterval(() => {
-          if (!tikFinitySocket || tikFinitySocket.readyState === WebSocket.CLOSED) {
+          if (!tfSocket || tfSocket.readyState === WebSocket.CLOSED) {
             initTikFinityWebSocket();
           }
         }, 3500);
-      }
-    }
-
-    /**
-     * Обработка событий подарков и кастомных эвентов TikFinity
-     */
-    function handleTikFinityMessage(msg) {
-      console.log("[TikFinity Event]", msg);
-
-      // 1. Стандартный формат события TikFinity Gift
-      if (msg.event === "gift" || (msg.data && msg.data.giftName)) {
-        const giftData = msg.data || msg;
-        const giftName = String(giftData.giftName || "").trim().toLowerCase();
-        const sender = giftData.nickname || giftData.uniqueId || "Зритель";
-
-        // Проверяем подарок "Галактика" (или "Galaxy")
-        if (giftName.includes("galaxy") || giftName.includes("галактик") || giftData.giftId === 5655) {
-          console.log(`[TikFinity] Получен подарок Галактика от ${sender}! Запуск рулетки...`);
-          spinWheel(null, { sender, gift: "Галактика" });
-          return;
-        }
-      }
-
-      // 2. Пользовательский триггер TikFinity (Custom Action / Event "SPIN_WHEEL")
-      if (msg.event === "SPIN_WHEEL" || msg.name === "SPIN_WHEEL" || (msg.data && msg.data.name === "SPIN_WHEEL")) {
-        const sender = (msg.data && (msg.data.nickname || msg.data.uniqueId)) || null;
-        spinWheel(null, sender ? { sender } : null);
-        return;
       }
     }
 
