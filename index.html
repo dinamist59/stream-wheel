@@ -4,40 +4,6 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Стрим-рулетка (OBS / TikTok Live Studio)</title>
-  <script>
-    // Защитный перехватчик дескриптора fetch для предотвращения ошибок сторонних скриптов
-    (function() {
-      try {
-        var originalFetch = window.fetch ? window.fetch.bind(window) : null;
-        var activeFetch = originalFetch;
-        var patchFetchOnTarget = function(target) {
-          if (!target) return;
-          try {
-            var desc = Object.getOwnPropertyDescriptor(target, 'fetch');
-            if (!desc || desc.configurable) {
-              Object.defineProperty(target, 'fetch', {
-                get: function() { return activeFetch; },
-                set: function(newFetch) { activeFetch = typeof newFetch === 'function' ? newFetch : originalFetch; },
-                configurable: true,
-                enumerable: true
-              });
-            }
-          } catch (err) {}
-        };
-        patchFetchOnTarget(window);
-        if (typeof Window !== 'undefined' && Window.prototype) patchFetchOnTarget(Window.prototype);
-        if (typeof globalThis !== 'undefined' && globalThis !== window) patchFetchOnTarget(globalThis);
-        window.addEventListener('error', function(event) {
-          var msg = (event && (event.message || (event.error && event.error.message))) || '';
-          if (typeof msg === 'string' && msg.indexOf('fetch') !== -1 && (msg.indexOf('only a getter') !== -1 || msg.indexOf('Cannot set property') !== -1)) {
-            if (event.preventDefault) event.preventDefault();
-            if (event.stopImmediatePropagation) event.stopImmediatePropagation();
-            return true;
-          }
-        }, true);
-      } catch (e) {}
-    })();
-  </script>
   <style>
     * {
       box-sizing: border-box;
@@ -173,10 +139,10 @@
       color: #94a3b8;
     }
   </style>
-<script src="/_aistudio-iframe.js?v=2c34bde1"></script></head>
+</head>
 <body>
 
-  <!-- Единственный элемент на странице: Колесо без рамок, кнопок и HUD -->
+  <!-- Главный виджет: колесо со стрелкой и плашкой результата -->
   <div id="wheel-container">
     <div class="wheel-stage">
       <!-- Неоновый указатель -->
@@ -209,7 +175,7 @@
   <script>
     /**
      * =========================================================================
-     * 1. СЕКТОРЫ КОЛЕСА
+     * 1. СЕКТОРЫ КОЛЕСА (можно менять под свои нужды)
      * =========================================================================
      */
     const SECTORS = [
@@ -230,7 +196,7 @@
 
     /**
      * =========================================================================
-     * 2. WEB AUDIO API СИНТЕЗАТОР (БЕЗ ВНЕШНИХ MP3)
+     * 2. WEB AUDIO API СИНТЕЗАТОР (РАБОТАЕТ БЕЗ ВНЕШНИХ MP3)
      * =========================================================================
      */
     class SoundEngine {
@@ -329,7 +295,7 @@
 
       ctx.clearRect(0, 0, width, height);
 
-      // Внешнее неоновое кольцо
+      // Внешнее кольцо
       ctx.save();
       ctx.beginPath();
       ctx.arc(centerX, centerY, radius + 12, 0, 2 * Math.PI);
@@ -373,7 +339,7 @@
         ctx.stroke();
         ctx.restore();
 
-        // Текст
+        // Текст сектора
         ctx.save();
         ctx.translate(centerX, centerY);
         ctx.rotate(midAngle);
@@ -396,7 +362,7 @@
         ctx.restore();
       }
 
-      // Штырьки
+      // Штырьки по ободу
       for (let i = 0; i < TOTAL_SECTORS; i++) {
         const pinAngle = rotationAngle + i * ARC_SIZE;
         const pinX = centerX + Math.cos(pinAngle) * (radius + 1);
@@ -415,7 +381,7 @@
         ctx.restore();
       }
 
-      // Центр
+      // Центральный хаб
       ctx.save();
       ctx.beginPath();
       ctx.arc(centerX, centerY, 56, 0, 2 * Math.PI);
@@ -553,28 +519,26 @@
 
     /**
      * =========================================================================
-     * 6. ЛОГИКА AUTO-HIDE
+     * 6. ЛОГИКА AUTO-HIDE (ПОЯВЛЕНИЕ -> СПИН -> ПОКАЗ -> ИСЧЕЗНОВЕНИЕ)
      * =========================================================================
      */
     function triggerAutoSpin(targetIndex = null, triggerInfo = null) {
-      if (isSequenceActive) {
-        return;
-      }
+      if (isSequenceActive) return;
       isSequenceActive = true;
       sound.initContext();
 
       hideResultBanner();
 
-      // а) Колесо плавно появляется по центру экрана (0.5s transition)
+      // 1. Колесо плавно появляется (0.5s transition)
       containerElem.classList.add("visible");
 
-      // б) Через 0.5 секунды автоматически запускается анимация вращения со звуком
+      // 2. Через 0.5 сек стартует анимация вращения
       setTimeout(() => {
         spinWheel(targetIndex, triggerInfo, (winningSector) => {
-          // в) Стрелка остановилась: результат подсвечивается и держится 4 секунды
+          // 3. Показ плашки победителя на 4 секунды
           showResultBanner(winningSector, triggerInfo);
 
-          // г) Спустя 4 секунды всё колесо плавно растворяется и исчезает
+          // 4. Спустя 4 секунды колесо плавно растворяется
           setTimeout(() => {
             containerElem.classList.remove("visible");
             hideResultBanner();
@@ -590,6 +554,7 @@
     /**
      * =========================================================================
      * 7. TIKFINITY WEBSOCKET (ws://localhost:21213/)
+     *    РЕАКЦИЯ ТОЛЬКО НА ПОДАРОК ГАЛАКТИКА ИЛИ КОМАНДУ !SPIN
      * =========================================================================
      */
     let tfSocket = null;
@@ -725,7 +690,7 @@
 
     /**
      * =========================================================================
-     * 9. РУЧНОЙ ЗАПУСК (SPACE, F8, КЛИК)
+     * 9. РУЧНОЙ ТЕСТОВЫЙ ЗАПУСК (ПРОБЕЛ, F8, КЛИК МЫШЬЮ)
      * =========================================================================
      */
     window.addEventListener("keydown", (e) => {
@@ -742,17 +707,9 @@
       }
     });
 
-    window.addEventListener("message", (event) => {
-      if (!event.data) return;
-      if (event.data === "spin" || event.data.action === "spin") {
-        const target = typeof event.data.targetIndex === "number" ? event.data.targetIndex : null;
-        triggerAutoSpin(target, event.data.triggerInfo || null);
-      }
-    });
-
     /**
      * =========================================================================
-     * 10. СТАРТ ИНИЦИАЛИЗАЦИИ
+     * 10. ЗАПУСК
      * =========================================================================
      */
     drawWheel(0);
