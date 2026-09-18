@@ -123,21 +123,19 @@
       top: 50%;
       left: 50%;
       transform: translate(-50%, -50%) scale(0.7);
-      background: rgba(10, 15, 29, 0.95);
+      background: #0f172a; /* 100% непрозрачный темный фон для четкой видимости в эфире */
       border: 3px solid #22d3ee;
       border-radius: 20px;
-      padding: 16px 28px;
+      padding: 18px 30px;
       text-align: center;
       color: #ffffff;
-      box-shadow: 0 0 45px rgba(34, 211, 238, 0.8), inset 0 0 20px rgba(34, 211, 238, 0.25);
-      backdrop-filter: blur(12px);
-      -webkit-backdrop-filter: blur(12px);
+      box-shadow: 0 0 50px rgba(34, 211, 238, 0.9), inset 0 0 24px rgba(34, 211, 238, 0.35);
       z-index: 100;
       opacity: 0;
       pointer-events: none;
       transition: opacity 0.35s cubic-bezier(0.16, 1, 0.3, 1), transform 0.35s cubic-bezier(0.16, 1, 0.3, 1);
-      min-width: 280px;
-      max-width: 420px;
+      min-width: 300px;
+      max-width: 440px;
     }
 
     #result-banner.active {
@@ -175,7 +173,7 @@
       color: #94a3b8;
     }
   </style>
-</head>
+<script src="/_aistudio-iframe.js?v=2c34bde1"></script></head>
 <body>
 
   <!-- Единственный элемент на странице: Колесо без рамок, кнопок и HUD -->
@@ -252,7 +250,6 @@
         }
       }
 
-      // Звук щелчка указателя по штырькам
       playTick(speedRatio = 1) {
         if (!this.ctx) return;
         try {
@@ -276,7 +273,6 @@
         } catch (e) {}
       }
 
-      // Звук победы / фанфар
       playWinSound(isJackpot = false) {
         if (!this.ctx) return;
         try {
@@ -320,9 +316,9 @@
     const resultTitle = document.getElementById("result-title");
     const resultSubtext = document.getElementById("result-subtext");
 
-    let currentRotation = 0; // в радианах
+    let currentRotation = 0;
     let isSpinning = false;
-    let isSequenceActive = false; // флаг полного жизненного цикла (появление -> вращение -> показ -> скрытие)
+    let isSequenceActive = false;
 
     function drawWheel(rotationAngle) {
       const width = canvas.width;
@@ -350,7 +346,7 @@
       ctx.stroke();
       ctx.restore();
 
-      // Отрисовка секторов
+      // Секторы
       for (let i = 0; i < TOTAL_SECTORS; i++) {
         const sector = SECTORS[i];
         const startAngle = rotationAngle + i * ARC_SIZE;
@@ -362,7 +358,6 @@
         ctx.arc(centerX, centerY, radius, startAngle, endAngle);
         ctx.closePath();
 
-        // Градиентная заливка сектора
         const midAngle = startAngle + ARC_SIZE / 2;
         const gradX = centerX + Math.cos(midAngle) * radius;
         const gradY = centerY + Math.sin(midAngle) * radius;
@@ -373,13 +368,12 @@
         ctx.fillStyle = grad;
         ctx.fill();
 
-        // Разделительные линии секторов
         ctx.lineWidth = 3.5;
         ctx.strokeStyle = "rgba(15, 23, 42, 0.85)";
         ctx.stroke();
         ctx.restore();
 
-        // Текст сектора
+        // Текст
         ctx.save();
         ctx.translate(centerX, centerY);
         ctx.rotate(midAngle);
@@ -402,7 +396,7 @@
         ctx.restore();
       }
 
-      // Внешние хромированные штырьки
+      // Штырьки
       for (let i = 0; i < TOTAL_SECTORS; i++) {
         const pinAngle = rotationAngle + i * ARC_SIZE;
         const pinX = centerX + Math.cos(pinAngle) * (radius + 1);
@@ -421,7 +415,7 @@
         ctx.restore();
       }
 
-      // Центральная металлическая сердцевина
+      // Центр
       ctx.save();
       ctx.beginPath();
       ctx.arc(centerX, centerY, 56, 0, 2 * Math.PI);
@@ -438,7 +432,6 @@
       ctx.strokeStyle = "#25f4ee";
       ctx.stroke();
 
-      // Звезда в центре
       ctx.beginPath();
       ctx.arc(centerX, centerY, 16, 0, 2 * Math.PI);
       ctx.fillStyle = "#fe2c55";
@@ -448,14 +441,12 @@
       ctx.restore();
     }
 
-    // Определение сектора под верхним указателем
     function getSectorUnderPointer(rotationAngle) {
-      const pointerAngle = (3 * Math.PI) / 2; // верхняя точка (270 градусов)
+      const pointerAngle = (3 * Math.PI) / 2;
       const normRotation = ((rotationAngle % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI);
       let relativeAngle = pointerAngle - normRotation;
       relativeAngle = ((relativeAngle % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI);
-      const sectorIndex = Math.floor(relativeAngle / ARC_SIZE) % TOTAL_SECTORS;
-      return sectorIndex;
+      return Math.floor(relativeAngle / ARC_SIZE) % TOTAL_SECTORS;
     }
 
     /**
@@ -478,7 +469,6 @@
 
       sound.initContext();
 
-      // Выбираем сектор остановки
       const chosenIndex = typeof targetIndex === "number" && targetIndex >= 0 && targetIndex < TOTAL_SECTORS
         ? targetIndex
         : Math.floor(Math.random() * TOTAL_SECTORS);
@@ -492,11 +482,10 @@
       let deltaAngle = targetRelativeAngle - currentNorm;
       if (deltaAngle < 0) deltaAngle += 2 * Math.PI;
 
-      // 6-8 полных оборотов
       const extraSpins = 6 + Math.floor(Math.random() * 3);
       const totalRotationDelta = extraSpins * (2 * Math.PI) + deltaAngle;
 
-      const durationMs = 5800; // 5.8 секунд вращения
+      const durationMs = 5800;
       const startTime = performance.now();
       const startRotation = currentRotation;
 
@@ -505,19 +494,15 @@
       function animateSpin(now) {
         const elapsed = now - startTime;
         const progress = Math.min(elapsed / durationMs, 1);
-
-        // Плавная кубическая кривая замедления
         const easeOut = 1 - Math.pow(1 - progress, 3.4);
         currentRotation = startRotation + totalRotationDelta * easeOut;
 
         drawWheel(currentRotation);
 
-        // Отслеживаем прохождение штырьков для звука и отклонения стрелки
         const currentSector = getSectorUnderPointer(currentRotation);
         if (currentSector !== lastPassedSector) {
           lastPassedSector = currentSector;
-          const currentSpeedRatio = 1 - progress;
-          sound.playTick(currentSpeedRatio);
+          sound.playTick(1 - progress);
           deflectPointer();
         }
 
@@ -541,7 +526,7 @@
 
     /**
      * =========================================================================
-     * 5. ВСПЛЫВАЮЩАЯ ПЛАШКА РЕЗУЛЬТАТА
+     * 5. ПЛАШКА РЕЗУЛЬТАТА
      * =========================================================================
      */
     function showResultBanner(sector, triggerInfo = null) {
@@ -568,16 +553,11 @@
 
     /**
      * =========================================================================
-     * 6. ЛОГИКА АВТОМАТИЧЕСКОГО ПОЯВЛЕНИЯ И ИСЧЕЗНОВЕНИЯ (AUTO-HIDE)
+     * 6. ЛОГИКА AUTO-HIDE
      * =========================================================================
-     * а) При сигнале колесо плавно появляется по центру (0.5s transition).
-     * б) Через 0.5s автоматически запускается вращение со звуком.
-     * в) Результат подсвечивается и держится 4 секунды.
-     * г) Спустя 4 секунды колесо плавно растворяется (opacity: 0, scale: 0.8).
      */
     function triggerAutoSpin(targetIndex = null, triggerInfo = null) {
       if (isSequenceActive) {
-        console.log("[AutoSpin] Сессия колеса уже активна на экране, запрос пропущен.");
         return;
       }
       isSequenceActive = true;
@@ -585,13 +565,13 @@
 
       hideResultBanner();
 
-      // а) Колесо плавно появляется по центру экрана (0.5s)
+      // а) Колесо плавно появляется по центру экрана (0.5s transition)
       containerElem.classList.add("visible");
 
-      // б) Через 0.5 секунды запускается анимация вращения колеса со звуком
+      // б) Через 0.5 секунды автоматически запускается анимация вращения со звуком
       setTimeout(() => {
         spinWheel(targetIndex, triggerInfo, (winningSector) => {
-          // в) Стрелка остановилась: показываем результат (фиксируется на 4 секунды)
+          // в) Стрелка остановилась: результат подсвечивается и держится 4 секунды
           showResultBanner(winningSector, triggerInfo);
 
           // г) Спустя 4 секунды всё колесо плавно растворяется и исчезает
@@ -599,7 +579,6 @@
             containerElem.classList.remove("visible");
             hideResultBanner();
 
-            // Сбрасываем флаг активности после завершения 0.5s анимации исчезновения
             setTimeout(() => {
               isSequenceActive = false;
             }, 550);
@@ -632,38 +611,75 @@
           try {
             const data = JSON.parse(event.data);
 
-            // 1. Реагирует на ЛЮБОЙ подарок или команду из TikFinity
-            if (data.event === "gift" || data.name === "SPIN_WHEEL" || data.event === "SPIN_WHEEL") {
-              const sender = (data.data && (data.data.nickname || data.data.uniqueId)) || data.nickname || data.uniqueId || null;
-              const gift = (data.data && data.data.giftName) || data.giftName || "Подарок";
-              triggerAutoSpin(null, { sender, gift });
+            // 1. Проверка на подарок «Галактика» / «Galaxy» (1000 монет)
+            const giftName = String(
+              (data.data && (data.data.giftName || data.data.name || data.data.gift_name)) ||
+              data.giftName ||
+              data.name ||
+              ""
+            ).trim().toLowerCase();
+
+            const diamondCount = Number(
+              (data.data && (data.data.diamondCount || data.data.diamonds || data.data.coins)) ||
+              data.diamondCount ||
+              data.diamonds ||
+              data.coins ||
+              0
+            );
+
+            const giftId = Number(
+              (data.data && (data.data.giftId || data.data.gift_id)) ||
+              data.giftId ||
+              0
+            );
+
+            const isGalaxy =
+              giftName.includes("galaxy") ||
+              giftName.includes("галактик") ||
+              giftName.includes("гэлакси") ||
+              giftName.includes("галакси") ||
+              diamondCount === 1000 ||
+              giftId === 5655;
+
+            // 2. Проверка на секретную команду !spin
+            const rawComment = String(
+              (data.data && (data.data.comment || data.data.text || data.data.message)) ||
+              data.comment ||
+              data.text ||
+              data.message ||
+              ""
+            ).trim().toLowerCase();
+
+            const isSecretCommand =
+              rawComment === "!spin" ||
+              rawComment.startsWith("!spin ") ||
+              rawComment === "spin" ||
+              rawComment === "/spin" ||
+              rawComment === "!рулетка" ||
+              rawComment.startsWith("!рулетка ");
+
+            // 3. Кастомное событие из TikFinity Actions
+            const isSpinAction = data.event === "SPIN_WHEEL" || data.name === "SPIN_WHEEL";
+
+            if (isGalaxy) {
+              const sender = (data.data && (data.data.nickname || data.data.uniqueId)) || data.nickname || data.uniqueId || "Зритель";
+              triggerAutoSpin(null, { sender, gift: "Подарок «Галактика» (1000 монет)" });
               return;
             }
 
-            // 2. Реагирует на команду !spin в чате TikFinity
-            const rawComment = (data.comment || data.text || (data.data && (data.data.comment || data.data.text)) || "").trim().toLowerCase();
-            if (
-              data.event === "chat" ||
-              data.event === "comment" ||
-              data.name === "chat" ||
-              rawComment.includes("!spin") ||
-              rawComment.includes("!рулетка")
-            ) {
-              if (
-                rawComment === "!spin" ||
-                rawComment.startsWith("!spin ") ||
-                rawComment === "!рулетка" ||
-                rawComment.startsWith("!рулетка ")
-              ) {
-                const sender = (data.data && (data.data.nickname || data.data.uniqueId)) || data.nickname || data.uniqueId || "Чат";
-                triggerAutoSpin(null, { sender, gift: "Команда " + rawComment });
-                return;
-              }
+            if (isSecretCommand) {
+              const sender = (data.data && (data.data.nickname || data.data.uniqueId)) || data.nickname || data.uniqueId || "Стример";
+              triggerAutoSpin(null, { sender, gift: "Секретная команда !spin" });
+              return;
+            }
+
+            if (isSpinAction) {
+              triggerAutoSpin();
+              return;
             }
           } catch (err) {
-            console.error(err);
             if (event.data === "SPIN_WHEEL" || event.data === "spin" || event.data === "!spin") {
-              triggerAutoSpin();
+              triggerAutoSpin(null, { sender: "Тест", gift: "Секретная команда !spin" });
             }
           }
         };
@@ -672,9 +688,7 @@
           attemptReconnect();
         };
 
-        tfSocket.onerror = () => {
-          // Ошибка сокета (TikFinity не запущен)
-        };
+        tfSocket.onerror = () => {};
       } catch (e) {
         attemptReconnect();
       }
@@ -692,7 +706,7 @@
 
     /**
      * =========================================================================
-     * 8. ПОДКЛЮЧЕНИЕ К TIKTOK LIVE ЧЕРЕЗ SSE СЕРВЕР (/api/tiktok/events)
+     * 8. ПОДКЛЮЧЕНИЕ К TIKTOK LIVE ЧЕРЕЗ SSE (/api/tiktok/events)
      * =========================================================================
      */
     function initTikTokSSE() {
@@ -711,7 +725,7 @@
 
     /**
      * =========================================================================
-     * 9. РУЧНОЙ ЗАПУСК: КЛАВИШИ SPACE / F8 И КЛИК ПО ЭКРАНУ
+     * 9. РУЧНОЙ ЗАПУСК (SPACE, F8, КЛИК)
      * =========================================================================
      */
     window.addEventListener("keydown", (e) => {
@@ -721,7 +735,6 @@
       }
     });
 
-    // Клик по экрану для ручной проверки и мгновенной активации звука
     window.addEventListener("click", () => {
       sound.initContext();
       if (!isSequenceActive) {
@@ -729,7 +742,6 @@
       }
     });
 
-    // Поддержка postMessage (из внешних окон или тестов)
     window.addEventListener("message", (event) => {
       if (!event.data) return;
       if (event.data === "spin" || event.data.action === "spin") {
@@ -747,7 +759,6 @@
     initTikFinityWebSocket();
     initTikTokSSE();
 
-    // Экспорт в глобальную область для консоли OBS
     window.triggerAutoSpin = triggerAutoSpin;
     window.spinWheel = spinWheel;
   </script>
