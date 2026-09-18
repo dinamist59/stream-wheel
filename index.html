@@ -5,7 +5,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Стрим-рулетка (OBS / TikTok Live Studio)</title>
   <script>
-    // Защитный перехватчик дескриптора fetch для предотвращения ошибок сторонних скриптов
     (function() {
       try {
         var originalFetch = window.fetch ? window.fetch.bind(window) : null;
@@ -58,7 +57,6 @@
       font-family: 'Segoe UI', system-ui, -apple-system, BlinkMacSystemFont, Roboto, sans-serif;
     }
 
-    /* Главный контейнер колеса с логикой Auto-hide */
     #wheel-container {
       position: relative;
       display: flex;
@@ -72,14 +70,12 @@
       filter: drop-shadow(0 0 35px rgba(0, 0, 0, 0.75));
     }
 
-    /* Видимое состояние при получении сигнала запуска */
     #wheel-container.visible {
       opacity: 1;
       transform: scale(1);
       pointer-events: auto;
     }
 
-    /* Обертка для канваса и стрелки */
     .wheel-stage {
       position: relative;
       width: 520px;
@@ -96,7 +92,6 @@
       border-radius: 50%;
     }
 
-    /* Верхний неоновый указатель (стрелка) */
     .wheel-pointer {
       position: absolute;
       top: -6px;
@@ -117,13 +112,12 @@
       display: block;
     }
 
-    /* Плашка победившего сектора (результат) */
     #result-banner {
       position: absolute;
       top: 50%;
       left: 50%;
       transform: translate(-50%, -50%) scale(0.7);
-      background: #0f172a; /* 100% непрозрачный темный фон для четкой видимости в эфире */
+      background: #0f172a;
       border: 3px solid #22d3ee;
       border-radius: 20px;
       padding: 18px 30px;
@@ -176,10 +170,8 @@
 </head>
 <body>
 
-  <!-- Единственный элемент на странице: Колесо без рамок, кнопок и HUD -->
   <div id="wheel-container">
     <div class="wheel-stage">
-      <!-- Неоновый указатель -->
       <div class="wheel-pointer" id="wheel-pointer">
         <svg viewBox="0 0 44 54" fill="none" xmlns="http://www.w3.org/2000/svg">
           <path d="M22 52L5 14C3 9 7 3 13 3H31C37 3 41 9 39 14L22 52Z" fill="url(#pointer-grad)" stroke="#ffffff" stroke-width="2.5" stroke-linejoin="round"/>
@@ -194,25 +186,17 @@
         </svg>
       </div>
 
-      <!-- Канвас отрисовки секторов колеса -->
       <canvas id="wheel-canvas" width="1040" height="1040"></canvas>
 
-      <!-- Всплывающий результат выпавшего сектора -->
       <div id="result-banner">
         <div class="result-badge" id="result-badge">ВЫПАЛ СЕКТОР</div>
-        <div class="result-title" id="result-title">Отжимания: 15</div>
-        <div class="result-subtext" id="result-subtext">Фитнес челлендж</div>
+        <div class="result-title" id="result-title">15 отжиманий</div>
+        <div class="result-subtext" id="result-subtext"></div>
       </div>
     </div>
   </div>
 
   <script>
-    /**
-     * =========================================================================
-     * 1. СЕКТОРЫ КОЛЕСА
-     * =========================================================================
-     */
-    const SECTORS = [
     const SECTORS = [
       { label: "ДЖЕКПОТ -1 ЧАС", subtext: "", color: "#f59e0b", colorDark: "#b45309", glowColor: "#fbbf24", isJackpot: true },
       { label: "15 отжиманий", subtext: "", color: "#8b5cf6", colorDark: "#5b21b6", glowColor: "#a78bfa", isJackpot: false },
@@ -229,11 +213,6 @@
     const TOTAL_SECTORS = SECTORS.length;
     const ARC_SIZE = (2 * Math.PI) / TOTAL_SECTORS;
 
-    /**
-     * =========================================================================
-     * 2. WEB AUDIO API СИНТЕЗАТОР (БЕЗ ВНЕШНИХ MP3)
-     * =========================================================================
-     */
     class SoundEngine {
       constructor() {
         this.ctx = null;
@@ -303,11 +282,6 @@
 
     const sound = new SoundEngine();
 
-    /**
-     * =========================================================================
-     * 3. ОТРИСОВКА КОЛЕСА НА CANVAS
-     * =========================================================================
-     */
     const canvas = document.getElementById("wheel-canvas");
     const ctx = canvas.getContext("2d");
     const pointerElem = document.getElementById("wheel-pointer");
@@ -330,7 +304,6 @@
 
       ctx.clearRect(0, 0, width, height);
 
-      // Внешнее неоновое кольцо
       ctx.save();
       ctx.beginPath();
       ctx.arc(centerX, centerY, radius + 12, 0, 2 * Math.PI);
@@ -347,7 +320,6 @@
       ctx.stroke();
       ctx.restore();
 
-      // Секторы
       for (let i = 0; i < TOTAL_SECTORS; i++) {
         const sector = SECTORS[i];
         const startAngle = rotationAngle + i * ARC_SIZE;
@@ -374,7 +346,6 @@
         ctx.stroke();
         ctx.restore();
 
-        // Текст
         ctx.save();
         ctx.translate(centerX, centerY);
         ctx.rotate(midAngle);
@@ -388,16 +359,17 @@
 
         ctx.font = "900 28px 'Segoe UI', system-ui, sans-serif";
         ctx.fillStyle = "#ffffff";
-        ctx.fillText(sector.label, radius - 44, -10);
+        ctx.fillText(sector.label, radius - 44, sector.subtext ? -10 : 0);
 
-        ctx.font = "700 17px 'Segoe UI', system-ui, sans-serif";
-        ctx.fillStyle = "rgba(255, 255, 255, 0.82)";
-        ctx.fillText(sector.subtext, radius - 44, 18);
+        if (sector.subtext) {
+          ctx.font = "700 17px 'Segoe UI', system-ui, sans-serif";
+          ctx.fillStyle = "rgba(255, 255, 255, 0.82)";
+          ctx.fillText(sector.subtext, radius - 44, 18);
+        }
 
         ctx.restore();
       }
 
-      // Штырьки
       for (let i = 0; i < TOTAL_SECTORS; i++) {
         const pinAngle = rotationAngle + i * ARC_SIZE;
         const pinX = centerX + Math.cos(pinAngle) * (radius + 1);
@@ -416,7 +388,6 @@
         ctx.restore();
       }
 
-      // Центр
       ctx.save();
       ctx.beginPath();
       ctx.arc(centerX, centerY, 56, 0, 2 * Math.PI);
@@ -450,11 +421,6 @@
       return Math.floor(relativeAngle / ARC_SIZE) % TOTAL_SECTORS;
     }
 
-    /**
-     * =========================================================================
-     * 4. МЕХАНИКА ВРАЩЕНИЯ
-     * =========================================================================
-     */
     let deflectTimer = null;
     function deflectPointer() {
       pointerElem.style.transform = "translateX(-50%) rotate(-18deg)";
@@ -525,14 +491,9 @@
       requestAnimationFrame(animateSpin);
     }
 
-    /**
-     * =========================================================================
-     * 5. ПЛАШКА РЕЗУЛЬТАТА
-     * =========================================================================
-     */
     function showResultBanner(sector, triggerInfo = null) {
       resultTitle.textContent = sector.label;
-      resultSubtext.textContent = sector.subtext;
+      resultSubtext.textContent = sector.subtext || "";
 
       resultBanner.style.borderColor = sector.glowColor;
       resultBanner.style.boxShadow = `0 0 45px ${sector.glowColor}99, inset 0 0 20px ${sector.glowColor}33`;
@@ -552,11 +513,6 @@
       resultBanner.classList.remove("active");
     }
 
-    /**
-     * =========================================================================
-     * 6. ЛОГИКА AUTO-HIDE
-     * =========================================================================
-     */
     function triggerAutoSpin(targetIndex = null, triggerInfo = null) {
       if (isSequenceActive) {
         return;
@@ -566,16 +522,12 @@
 
       hideResultBanner();
 
-      // а) Колесо плавно появляется по центру экрана (0.5s transition)
       containerElem.classList.add("visible");
 
-      // б) Через 0.5 секунды автоматически запускается анимация вращения со звуком
       setTimeout(() => {
         spinWheel(targetIndex, triggerInfo, (winningSector) => {
-          // в) Стрелка остановилась: результат подсвечивается и держится 4 секунды
           showResultBanner(winningSector, triggerInfo);
 
-          // г) Спустя 4 секунды всё колесо плавно растворяется и исчезает
           setTimeout(() => {
             containerElem.classList.remove("visible");
             hideResultBanner();
@@ -588,11 +540,6 @@
       }, 500);
     }
 
-    /**
-     * =========================================================================
-     * 7. TIKFINITY WEBSOCKET (ws://localhost:21213/)
-     * =========================================================================
-     */
     let tfSocket = null;
     let reconnectTimer = null;
 
@@ -612,7 +559,6 @@
           try {
             const data = JSON.parse(event.data);
 
-            // 1. Проверка на подарок «Галактика» / «Galaxy» (1000 монет)
             const giftName = String(
               (data.data && (data.data.giftName || data.data.name || data.data.gift_name)) ||
               data.giftName ||
@@ -642,7 +588,6 @@
               diamondCount === 1000 ||
               giftId === 5655;
 
-            // 2. Проверка на секретную команду !spin
             const rawComment = String(
               (data.data && (data.data.comment || data.data.text || data.data.message)) ||
               data.comment ||
@@ -659,7 +604,6 @@
               rawComment === "!рулетка" ||
               rawComment.startsWith("!рулетка ");
 
-            // 3. Кастомное событие из TikFinity Actions
             const isSpinAction = data.event === "SPIN_WHEEL" || data.name === "SPIN_WHEEL";
 
             if (isGalaxy) {
@@ -705,30 +649,6 @@
       }
     }
 
-    /**
-     * =========================================================================
-     * 8. ПОДКЛЮЧЕНИЕ К TIKTOK LIVE ЧЕРЕЗ SSE (/api/tiktok/events)
-     * =========================================================================
-     */
-    function initTikTokSSE() {
-      if (typeof window !== "undefined" && window.location.protocol.startsWith("http")) {
-        try {
-          const sse = new EventSource("/api/tiktok/events");
-          sse.addEventListener("spin", (e) => {
-            try {
-              const data = JSON.parse(e.data);
-              triggerAutoSpin(null, data.triggerInfo || null);
-            } catch (err) {}
-          });
-        } catch (err) {}
-      }
-    }
-
-    /**
-     * =========================================================================
-     * 9. РУЧНОЙ ЗАПУСК (SPACE, F8, КЛИК)
-     * =========================================================================
-     */
     window.addEventListener("keydown", (e) => {
       if (e.code === "Space" || e.key === " " || e.key === "F8") {
         e.preventDefault();
@@ -751,14 +671,8 @@
       }
     });
 
-    /**
-     * =========================================================================
-     * 10. СТАРТ ИНИЦИАЛИЗАЦИИ
-     * =========================================================================
-     */
     drawWheel(0);
     initTikFinityWebSocket();
-    initTikTokSSE();
 
     window.triggerAutoSpin = triggerAutoSpin;
     window.spinWheel = spinWheel;
