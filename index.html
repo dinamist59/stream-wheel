@@ -1,6 +1,42 @@
 <!DOCTYPE html>
 <html lang="ru">
 <head>
+  <script>
+    (function() {
+      try {
+        var originalFetch = window.fetch ? window.fetch.bind(window) : null;
+        var activeFetch = originalFetch;
+
+        var patchFetchOnTarget = function(target) {
+          if (!target) return;
+          try {
+            var desc = Object.getOwnPropertyDescriptor(target, 'fetch');
+            if (!desc || desc.configurable) {
+              Object.defineProperty(target, 'fetch', {
+                get: function() { return activeFetch; },
+                set: function(newFetch) { activeFetch = typeof newFetch === 'function' ? newFetch : originalFetch; },
+                configurable: true,
+                enumerable: true
+              });
+            }
+          } catch (err) {}
+        };
+
+        patchFetchOnTarget(window);
+        if (typeof Window !== 'undefined' && Window.prototype) patchFetchOnTarget(Window.prototype);
+        if (typeof globalThis !== 'undefined' && globalThis !== window) patchFetchOnTarget(globalThis);
+
+        window.addEventListener('error', function(event) {
+          var msg = (event && (event.message || (event.error && event.error.message))) || '';
+          if (typeof msg === 'string' && msg.indexOf('fetch') !== -1 && (msg.indexOf('only a getter') !== -1 || msg.indexOf('Cannot set property') !== -1)) {
+            if (event.preventDefault) event.preventDefault();
+            if (event.stopImmediatePropagation) event.stopImmediatePropagation();
+            return true;
+          }
+        }, true);
+      } catch (e) {}
+    })();
+  </script>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Колесо фортуны / Рулетка для стрима (TikTok Live & OBS)</title>
@@ -966,6 +1002,58 @@
 
     /**
      * =========================================================================
+     * 7.5. ПОДКЛЮЧЕНИЕ К TIKTOK LIVE ЧЕРЕЗ СЕРВЕРНЫЙ SSE (/api/tiktok/events)
+     * =========================================================================
+     */
+    let tiktokEventSource = null;
+    function initTikTokSSE() {
+      if (typeof window === "undefined" || !window.location.protocol.startsWith("http")) return;
+      try {
+        tiktokEventSource = new EventSource("/api/tiktok/events");
+
+        tiktokEventSource.addEventListener("init", (e) => {
+          try {
+            const data = JSON.parse(e.data);
+            if (data.connected && data.username) {
+              wsDot.classList.add("connected");
+              wsText.textContent = `TikTok LIVE: @${data.username}`;
+            }
+          } catch(err) {}
+        });
+
+        tiktokEventSource.addEventListener("connected", (e) => {
+          try {
+            const data = JSON.parse(e.data);
+            wsDot.classList.add("connected");
+            wsText.textContent = `TikTok LIVE: @${data.username}`;
+          } catch(err) {}
+        });
+
+        tiktokEventSource.addEventListener("disconnected", () => {
+          wsDot.classList.remove("connected");
+          wsText.textContent = `TikTok: Отключен`;
+        });
+
+        tiktokEventSource.addEventListener("spin", (e) => {
+          try {
+            const data = JSON.parse(e.data);
+            spinWheel(null, data.triggerInfo || null);
+          } catch(err) {}
+        });
+
+        tiktokEventSource.addEventListener("gift", (e) => {
+          try {
+            const data = JSON.parse(e.data);
+            console.log("[TikTok LIVE Event] Подарок:", data);
+          } catch(err) {}
+        });
+      } catch (err) {
+        console.log("[TikTok SSE] Режим автономного файла, используется TikFinity WebSocket");
+      }
+    }
+
+    /**
+     * =========================================================================
      * 8. УПРАВЛЕНИЕ: GALAXY TEST, POSTMESSAGE, ГОРЯЧИЕ КЛАВИШИ, ТЕСТОВАЯ ПАНЕЛЬ
      * =========================================================================
      */
@@ -1040,6 +1128,7 @@
      * =========================================================================
      */
     drawWheel(currentRotation);
+    initTikTokSSE();
     initTikFinityWebSocket();
 
     // Разрешаем AudioContext по любому клику пользователя на странице
