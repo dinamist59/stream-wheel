@@ -1,52 +1,766 @@
 <!DOCTYPE html>
 <html lang="ru">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Рулетка для стрима (TikFinity & OBS)</title>
-    <meta name="description" content="Интерактивный неоновый оверлей Колесо фортуны для стримов TikTok Live Studio и OBS с прямым подключением к эфиру TikTok, поддержкой подарков (Галактика), чат-команд, TikFinity WebSocket и звуками Web Audio API." />
-    <meta property="og:title" content="Рулетка для стрима (TikFinity & OBS)" />
-    <meta property="og:description" content="Интерактивный неоновый оверлей Колесо фортуны для стримов TikTok Live Studio и OBS с прямым подключением к эфиру TikTok, поддержкой подарков (Галактика), чат-команд, TikFinity WebSocket и звуками Web Audio API." />
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
-    <script>
-      // Защитный перехватчик дескриптора fetch для предотвращения ошибок сторонних скриптов
-      (function() {
-        try {
-          var originalFetch = window.fetch ? window.fetch.bind(window) : null;
-          var activeFetch = originalFetch;
-          var patchFetchOnTarget = function(target) {
-            if (!target) return;
-            try {
-              var desc = Object.getOwnPropertyDescriptor(target, 'fetch');
-              if (!desc || desc.configurable) {
-                Object.defineProperty(target, 'fetch', {
-                  get: function() { return activeFetch; },
-                  set: function(newFetch) { activeFetch = typeof newFetch === 'function' ? newFetch : originalFetch; },
-                  configurable: true,
-                  enumerable: true
-                });
-              }
-            } catch (err) {}
-          };
-          patchFetchOnTarget(window);
-          if (typeof Window !== 'undefined' && Window.prototype) patchFetchOnTarget(Window.prototype);
-          if (typeof globalThis !== 'undefined' && globalThis !== window) patchFetchOnTarget(globalThis);
-          window.addEventListener('error', function(event) {
-            var msg = (event && (event.message || (event.error && event.error.message))) || '';
-            if (typeof msg === 'string' && msg.indexOf('fetch') !== -1 && (msg.indexOf('only a getter') !== -1 || msg.indexOf('Cannot set property') !== -1)) {
-              if (event.preventDefault) event.preventDefault();
-              if (event.stopImmediatePropagation) event.stopImmediatePropagation();
-              return true;
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Стрим-рулетка (OBS / TikTok Live Studio)</title>
+  <script>
+    // Защитный перехватчик дескриптора fetch для предотвращения ошибок сторонних скриптов
+    (function() {
+      try {
+        var originalFetch = window.fetch ? window.fetch.bind(window) : null;
+        var activeFetch = originalFetch;
+        var patchFetchOnTarget = function(target) {
+          if (!target) return;
+          try {
+            var desc = Object.getOwnPropertyDescriptor(target, 'fetch');
+            if (!desc || desc.configurable) {
+              Object.defineProperty(target, 'fetch', {
+                get: function() { return activeFetch; },
+                set: function(newFetch) { activeFetch = typeof newFetch === 'function' ? newFetch : originalFetch; },
+                configurable: true,
+                enumerable: true
+              });
             }
-          }, true);
+          } catch (err) {}
+        };
+        patchFetchOnTarget(window);
+        if (typeof Window !== 'undefined' && Window.prototype) patchFetchOnTarget(Window.prototype);
+        if (typeof globalThis !== 'undefined' && globalThis !== window) patchFetchOnTarget(globalThis);
+        window.addEventListener('error', function(event) {
+          var msg = (event && (event.message || (event.error && event.error.message))) || '';
+          if (typeof msg === 'string' && msg.indexOf('fetch') !== -1 && (msg.indexOf('only a getter') !== -1 || msg.indexOf('Cannot set property') !== -1)) {
+            if (event.preventDefault) event.preventDefault();
+            if (event.stopImmediatePropagation) event.stopImmediatePropagation();
+            return true;
+          }
+        }, true);
+      } catch (e) {}
+    })();
+  </script>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+
+    html, body {
+      width: 100vw;
+      height: 100vh;
+      overflow: hidden;
+      background: transparent !important;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: 'Segoe UI', system-ui, -apple-system, BlinkMacSystemFont, Roboto, sans-serif;
+    }
+
+    /* Главный контейнер колеса с логикой Auto-hide */
+    #wheel-container {
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      opacity: 0;
+      transform: scale(0.8);
+      pointer-events: none;
+      transition: opacity 0.5s ease-in-out, transform 0.5s ease-in-out;
+      filter: drop-shadow(0 0 35px rgba(0, 0, 0, 0.75));
+    }
+
+    /* Видимое состояние при получении сигнала запуска */
+    #wheel-container.visible {
+      opacity: 1;
+      transform: scale(1);
+      pointer-events: auto;
+    }
+
+    /* Обертка для канваса и стрелки */
+    .wheel-stage {
+      position: relative;
+      width: 520px;
+      height: 520px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    canvas#wheel-canvas {
+      display: block;
+      width: 520px;
+      height: 520px;
+      border-radius: 50%;
+    }
+
+    /* Верхний неоновый указатель (стрелка) */
+    .wheel-pointer {
+      position: absolute;
+      top: -6px;
+      left: 50%;
+      transform: translateX(-50%) rotate(0deg);
+      transform-origin: 50% 12px;
+      width: 44px;
+      height: 54px;
+      z-index: 50;
+      filter: drop-shadow(0 0 14px rgba(254, 44, 85, 0.95)) drop-shadow(0 4px 10px rgba(0, 0, 0, 0.8));
+      transition: transform 0.08s cubic-bezier(0.2, 0.8, 0.4, 1);
+      pointer-events: none;
+    }
+
+    .wheel-pointer svg {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+
+    /* Плашка победившего сектора (результат) */
+    #result-banner {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%) scale(0.7);
+      background: #0f172a; /* 100% непрозрачный темный фон для четкой видимости в эфире */
+      border: 3px solid #22d3ee;
+      border-radius: 20px;
+      padding: 18px 30px;
+      text-align: center;
+      color: #ffffff;
+      box-shadow: 0 0 50px rgba(34, 211, 238, 0.9), inset 0 0 24px rgba(34, 211, 238, 0.35);
+      z-index: 100;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.35s cubic-bezier(0.16, 1, 0.3, 1), transform 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+      min-width: 300px;
+      max-width: 440px;
+    }
+
+    #result-banner.active {
+      opacity: 1;
+      transform: translate(-50%, -50%) scale(1);
+      pointer-events: auto;
+    }
+
+    .result-badge {
+      display: inline-block;
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      color: #38bdf8;
+      background: rgba(56, 189, 248, 0.15);
+      border: 1px solid rgba(56, 189, 248, 0.4);
+      padding: 3px 12px;
+      border-radius: 999px;
+      margin-bottom: 8px;
+    }
+
+    .result-title {
+      font-size: 26px;
+      font-weight: 900;
+      letter-spacing: 0.5px;
+      text-shadow: 0 0 15px rgba(255, 255, 255, 0.6);
+      line-height: 1.2;
+      margin-bottom: 4px;
+    }
+
+    .result-subtext {
+      font-size: 13px;
+      font-weight: 600;
+      color: #94a3b8;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Единственный элемент на странице: Колесо без рамок, кнопок и HUD -->
+  <div id="wheel-container">
+    <div class="wheel-stage">
+      <!-- Неоновый указатель -->
+      <div class="wheel-pointer" id="wheel-pointer">
+        <svg viewBox="0 0 44 54" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M22 52L5 14C3 9 7 3 13 3H31C37 3 41 9 39 14L22 52Z" fill="url(#pointer-grad)" stroke="#ffffff" stroke-width="2.5" stroke-linejoin="round"/>
+          <circle cx="22" cy="14" r="5" fill="#ffffff" filter="drop-shadow(0 0 6px #fff)"/>
+          <defs>
+            <linearGradient id="pointer-grad" x1="22" y1="3" x2="22" y2="52" gradientUnits="userSpaceOnUse">
+              <stop offset="0%" stop-color="#ff007a"/>
+              <stop offset="60%" stop-color="#fe2c55"/>
+              <stop offset="100%" stop-color="#25f4ee"/>
+            </linearGradient>
+          </defs>
+        </svg>
+      </div>
+
+      <!-- Канвас отрисовки секторов колеса -->
+      <canvas id="wheel-canvas" width="1040" height="1040"></canvas>
+
+      <!-- Всплывающий результат выпавшего сектора -->
+      <div id="result-banner">
+        <div class="result-badge" id="result-badge">ВЫПАЛ СЕКТОР</div>
+        <div class="result-title" id="result-title">Отжимания: 15</div>
+        <div class="result-subtext" id="result-subtext">Фитнес челлендж</div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    /**
+     * =========================================================================
+     * 1. СЕКТОРЫ КОЛЕСА
+     * =========================================================================
+     */
+    const SECTORS = [
+      { label: "Отжимания: 15", subtext: "Фитнес челлендж", color: "#ec4899", colorDark: "#9d174d", glowColor: "#f472b6", isJackpot: false },
+      { label: "Таймер +5 мин", subtext: "Продление стрима", color: "#06b6d4", colorDark: "#0e7490", glowColor: "#22d3ee", isJackpot: false },
+      { label: "Приседания: 20", subtext: "Фитнес челлендж", color: "#8b5cf6", colorDark: "#5b21b6", glowColor: "#a78bfa", isJackpot: false },
+      { label: "Таймер -5 мин", subtext: "Ускорение стрима", color: "#f97316", colorDark: "#c2410c", glowColor: "#fb923c", isJackpot: false },
+      { label: "🔥 ДЖЕКПОТ 🔥", subtext: "Супер сектор!", color: "#eab308", colorDark: "#854d0e", glowColor: "#fde047", isJackpot: true },
+      { label: "Планка 45 сек", subtext: "Выносливость", color: "#10b981", colorDark: "#047857", glowColor: "#34d399", isJackpot: false },
+      { label: "Таймер +10 мин", subtext: "Мега продление", color: "#3b82f6", colorDark: "#1d4ed8", glowColor: "#60a5fa", isJackpot: false },
+      { label: "Пресс: 20 раз", subtext: "Фитнес челлендж", color: "#a855f7", colorDark: "#7e22ce", glowColor: "#c084fc", isJackpot: false },
+      { label: "Таймер -2 мин", subtext: "Ускорение стрима", color: "#ef4444", colorDark: "#b91c1c", glowColor: "#f87171", isJackpot: false },
+      { label: "Шатаут зрителя", subtext: "Респект от стримера", color: "#14b8a6", colorDark: "#0f766e", glowColor: "#2dd4bf", isJackpot: false }
+    ];
+
+    const TOTAL_SECTORS = SECTORS.length;
+    const ARC_SIZE = (2 * Math.PI) / TOTAL_SECTORS;
+
+    /**
+     * =========================================================================
+     * 2. WEB AUDIO API СИНТЕЗАТОР (БЕЗ ВНЕШНИХ MP3)
+     * =========================================================================
+     */
+    class SoundEngine {
+      constructor() {
+        this.ctx = null;
+      }
+
+      initContext() {
+        if (!this.ctx) {
+          const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+          if (AudioContextClass) {
+            this.ctx = new AudioContextClass();
+          }
+        }
+        if (this.ctx && this.ctx.state === "suspended") {
+          this.ctx.resume().catch(() => {});
+        }
+      }
+
+      playTick(speedRatio = 1) {
+        if (!this.ctx) return;
+        try {
+          const now = this.ctx.currentTime;
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+
+          const baseFreq = 750 + Math.min(speedRatio * 350, 450);
+          osc.type = "sine";
+          osc.frequency.setValueAtTime(baseFreq, now);
+          osc.frequency.exponentialRampToValueAtTime(140, now + 0.035);
+
+          gain.gain.setValueAtTime(0.18, now);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.035);
+
+          osc.connect(gain);
+          gain.connect(this.ctx.destination);
+
+          osc.start(now);
+          osc.stop(now + 0.036);
         } catch (e) {}
-      })();
-    </script>
-  </head>
-  <body class="bg-slate-950 text-slate-100 antialiased font-sans selection:bg-cyan-500 selection:text-black">
-    <div id="root"></div>
-    <script type="module" src="/src/main.tsx"></script>
-  </body>
+      }
+
+      playWinSound(isJackpot = false) {
+        if (!this.ctx) return;
+        try {
+          const now = this.ctx.currentTime;
+          const notes = isJackpot ? [523.25, 659.25, 783.99, 1046.50, 1318.51] : [440, 554.37, 659.25, 880];
+          notes.forEach((freq, i) => {
+            const osc = this.ctx.createOscillator();
+            const gain = this.ctx.createGain();
+            const noteStart = now + i * 0.09;
+
+            osc.type = isJackpot ? "triangle" : "sine";
+            osc.frequency.setValueAtTime(freq, noteStart);
+
+            gain.gain.setValueAtTime(0, noteStart);
+            gain.gain.linearRampToValueAtTime(0.22, noteStart + 0.02);
+            gain.gain.exponentialRampToValueAtTime(0.001, noteStart + 0.55);
+
+            osc.connect(gain);
+            gain.connect(this.ctx.destination);
+
+            osc.start(noteStart);
+            osc.stop(noteStart + 0.56);
+          });
+        } catch (e) {}
+      }
+    }
+
+    const sound = new SoundEngine();
+
+    /**
+     * =========================================================================
+     * 3. ОТРИСОВКА КОЛЕСА НА CANVAS
+     * =========================================================================
+     */
+    const canvas = document.getElementById("wheel-canvas");
+    const ctx = canvas.getContext("2d");
+    const pointerElem = document.getElementById("wheel-pointer");
+    const containerElem = document.getElementById("wheel-container");
+    const resultBanner = document.getElementById("result-banner");
+    const resultBadge = document.getElementById("result-badge");
+    const resultTitle = document.getElementById("result-title");
+    const resultSubtext = document.getElementById("result-subtext");
+
+    let currentRotation = 0;
+    let isSpinning = false;
+    let isSequenceActive = false;
+
+    function drawWheel(rotationAngle) {
+      const width = canvas.width;
+      const height = canvas.height;
+      const centerX = width / 2;
+      const centerY = height / 2;
+      const radius = width / 2 - 36;
+
+      ctx.clearRect(0, 0, width, height);
+
+      // Внешнее неоновое кольцо
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(centerX, centerY, radius + 12, 0, 2 * Math.PI);
+      ctx.lineWidth = 14;
+      ctx.strokeStyle = "#0f172a";
+      ctx.stroke();
+
+      ctx.beginPath();
+      ctx.arc(centerX, centerY, radius + 8, 0, 2 * Math.PI);
+      ctx.lineWidth = 6;
+      ctx.strokeStyle = "#25f4ee";
+      ctx.shadowColor = "#25f4ee";
+      ctx.shadowBlur = 18;
+      ctx.stroke();
+      ctx.restore();
+
+      // Секторы
+      for (let i = 0; i < TOTAL_SECTORS; i++) {
+        const sector = SECTORS[i];
+        const startAngle = rotationAngle + i * ARC_SIZE;
+        const endAngle = startAngle + ARC_SIZE;
+
+        ctx.save();
+        ctx.beginPath();
+        ctx.moveTo(centerX, centerY);
+        ctx.arc(centerX, centerY, radius, startAngle, endAngle);
+        ctx.closePath();
+
+        const midAngle = startAngle + ARC_SIZE / 2;
+        const gradX = centerX + Math.cos(midAngle) * radius;
+        const gradY = centerY + Math.sin(midAngle) * radius;
+        const grad = ctx.createLinearGradient(centerX, centerY, gradX, gradY);
+        grad.addColorStop(0, sector.colorDark);
+        grad.addColorStop(0.7, sector.color);
+        grad.addColorStop(1, sector.glowColor);
+        ctx.fillStyle = grad;
+        ctx.fill();
+
+        ctx.lineWidth = 3.5;
+        ctx.strokeStyle = "rgba(15, 23, 42, 0.85)";
+        ctx.stroke();
+        ctx.restore();
+
+        // Текст
+        ctx.save();
+        ctx.translate(centerX, centerY);
+        ctx.rotate(midAngle);
+        ctx.textAlign = "right";
+        ctx.textBaseline = "middle";
+
+        ctx.shadowColor = "rgba(0, 0, 0, 0.9)";
+        ctx.shadowBlur = 8;
+        ctx.shadowOffsetX = 2;
+        ctx.shadowOffsetY = 2;
+
+        ctx.font = "900 28px 'Segoe UI', system-ui, sans-serif";
+        ctx.fillStyle = "#ffffff";
+        ctx.fillText(sector.label, radius - 44, -10);
+
+        ctx.font = "700 17px 'Segoe UI', system-ui, sans-serif";
+        ctx.fillStyle = "rgba(255, 255, 255, 0.82)";
+        ctx.fillText(sector.subtext, radius - 44, 18);
+
+        ctx.restore();
+      }
+
+      // Штырьки
+      for (let i = 0; i < TOTAL_SECTORS; i++) {
+        const pinAngle = rotationAngle + i * ARC_SIZE;
+        const pinX = centerX + Math.cos(pinAngle) * (radius + 1);
+        const pinY = centerY + Math.sin(pinAngle) * (radius + 1);
+
+        ctx.save();
+        ctx.beginPath();
+        ctx.arc(pinX, pinY, 7, 0, 2 * Math.PI);
+        ctx.fillStyle = "#ffffff";
+        ctx.shadowColor = "#ffffff";
+        ctx.shadowBlur = 10;
+        ctx.fill();
+        ctx.lineWidth = 2.5;
+        ctx.strokeStyle = "#0f172a";
+        ctx.stroke();
+        ctx.restore();
+      }
+
+      // Центр
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(centerX, centerY, 56, 0, 2 * Math.PI);
+      const hubGrad = ctx.createRadialGradient(centerX - 10, centerY - 10, 8, centerX, centerY, 56);
+      hubGrad.addColorStop(0, "#ffffff");
+      hubGrad.addColorStop(0.3, "#94a3b8");
+      hubGrad.addColorStop(0.8, "#1e293b");
+      hubGrad.addColorStop(1, "#090d16");
+      ctx.fillStyle = hubGrad;
+      ctx.shadowColor = "rgba(0, 0, 0, 0.8)";
+      ctx.shadowBlur = 16;
+      ctx.fill();
+      ctx.lineWidth = 4;
+      ctx.strokeStyle = "#25f4ee";
+      ctx.stroke();
+
+      ctx.beginPath();
+      ctx.arc(centerX, centerY, 16, 0, 2 * Math.PI);
+      ctx.fillStyle = "#fe2c55";
+      ctx.shadowColor = "#fe2c55";
+      ctx.shadowBlur = 12;
+      ctx.fill();
+      ctx.restore();
+    }
+
+    function getSectorUnderPointer(rotationAngle) {
+      const pointerAngle = (3 * Math.PI) / 2;
+      const normRotation = ((rotationAngle % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI);
+      let relativeAngle = pointerAngle - normRotation;
+      relativeAngle = ((relativeAngle % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI);
+      return Math.floor(relativeAngle / ARC_SIZE) % TOTAL_SECTORS;
+    }
+
+    /**
+     * =========================================================================
+     * 4. МЕХАНИКА ВРАЩЕНИЯ
+     * =========================================================================
+     */
+    let deflectTimer = null;
+    function deflectPointer() {
+      pointerElem.style.transform = "translateX(-50%) rotate(-18deg)";
+      clearTimeout(deflectTimer);
+      deflectTimer = setTimeout(() => {
+        pointerElem.style.transform = "translateX(-50%) rotate(0deg)";
+      }, 65);
+    }
+
+    function spinWheel(targetIndex = null, triggerInfo = null, onFinishCallback = null) {
+      if (isSpinning) return;
+      isSpinning = true;
+
+      sound.initContext();
+
+      const chosenIndex = typeof targetIndex === "number" && targetIndex >= 0 && targetIndex < TOTAL_SECTORS
+        ? targetIndex
+        : Math.floor(Math.random() * TOTAL_SECTORS);
+
+      const pointerAngle = (3 * Math.PI) / 2;
+      const targetSectorMid = chosenIndex * ARC_SIZE + ARC_SIZE / 2;
+      const randomOffset = (Math.random() - 0.5) * (ARC_SIZE * 0.7);
+      const targetRelativeAngle = ((pointerAngle - targetSectorMid + randomOffset) % (2 * Math.PI) + 2 * Math.PI) % (2 * Math.PI);
+
+      const currentNorm = ((currentRotation % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI);
+      let deltaAngle = targetRelativeAngle - currentNorm;
+      if (deltaAngle < 0) deltaAngle += 2 * Math.PI;
+
+      const extraSpins = 6 + Math.floor(Math.random() * 3);
+      const totalRotationDelta = extraSpins * (2 * Math.PI) + deltaAngle;
+
+      const durationMs = 5800;
+      const startTime = performance.now();
+      const startRotation = currentRotation;
+
+      let lastPassedSector = getSectorUnderPointer(startRotation);
+
+      function animateSpin(now) {
+        const elapsed = now - startTime;
+        const progress = Math.min(elapsed / durationMs, 1);
+        const easeOut = 1 - Math.pow(1 - progress, 3.4);
+        currentRotation = startRotation + totalRotationDelta * easeOut;
+
+        drawWheel(currentRotation);
+
+        const currentSector = getSectorUnderPointer(currentRotation);
+        if (currentSector !== lastPassedSector) {
+          lastPassedSector = currentSector;
+          sound.playTick(1 - progress);
+          deflectPointer();
+        }
+
+        if (progress < 1) {
+          requestAnimationFrame(animateSpin);
+        } else {
+          isSpinning = false;
+          const finalIndex = getSectorUnderPointer(currentRotation);
+          const winningSector = SECTORS[finalIndex];
+
+          sound.playWinSound(winningSector.isJackpot);
+
+          if (typeof onFinishCallback === "function") {
+            onFinishCallback(winningSector);
+          }
+        }
+      }
+
+      requestAnimationFrame(animateSpin);
+    }
+
+    /**
+     * =========================================================================
+     * 5. ПЛАШКА РЕЗУЛЬТАТА
+     * =========================================================================
+     */
+    function showResultBanner(sector, triggerInfo = null) {
+      resultTitle.textContent = sector.label;
+      resultSubtext.textContent = sector.subtext;
+
+      resultBanner.style.borderColor = sector.glowColor;
+      resultBanner.style.boxShadow = `0 0 45px ${sector.glowColor}99, inset 0 0 20px ${sector.glowColor}33`;
+      resultBadge.style.color = sector.glowColor;
+      resultBadge.style.borderColor = sector.glowColor;
+
+      if (triggerInfo && triggerInfo.sender) {
+        resultBadge.textContent = `${triggerInfo.gift ? triggerInfo.gift.toUpperCase() + " ОТ " : ""}@${triggerInfo.sender.toUpperCase()}`;
+      } else {
+        resultBadge.textContent = sector.isJackpot ? "🔥 СУПЕР ДЖЕКПОТ 🔥" : "ВЫПАЛ СЕКТОР";
+      }
+
+      resultBanner.classList.add("active");
+    }
+
+    function hideResultBanner() {
+      resultBanner.classList.remove("active");
+    }
+
+    /**
+     * =========================================================================
+     * 6. ЛОГИКА AUTO-HIDE
+     * =========================================================================
+     */
+    function triggerAutoSpin(targetIndex = null, triggerInfo = null) {
+      if (isSequenceActive) {
+        return;
+      }
+      isSequenceActive = true;
+      sound.initContext();
+
+      hideResultBanner();
+
+      // а) Колесо плавно появляется по центру экрана (0.5s transition)
+      containerElem.classList.add("visible");
+
+      // б) Через 0.5 секунды автоматически запускается анимация вращения со звуком
+      setTimeout(() => {
+        spinWheel(targetIndex, triggerInfo, (winningSector) => {
+          // в) Стрелка остановилась: результат подсвечивается и держится 4 секунды
+          showResultBanner(winningSector, triggerInfo);
+
+          // г) Спустя 4 секунды всё колесо плавно растворяется и исчезает
+          setTimeout(() => {
+            containerElem.classList.remove("visible");
+            hideResultBanner();
+
+            setTimeout(() => {
+              isSequenceActive = false;
+            }, 550);
+          }, 4000);
+        });
+      }, 500);
+    }
+
+    /**
+     * =========================================================================
+     * 7. TIKFINITY WEBSOCKET (ws://localhost:21213/)
+     * =========================================================================
+     */
+    let tfSocket = null;
+    let reconnectTimer = null;
+
+    function initTikFinityWebSocket() {
+      try {
+        tfSocket = new WebSocket("ws://localhost:21213/");
+
+        tfSocket.onopen = () => {
+          console.log("Подключено к TikFinity");
+          if (reconnectTimer) {
+            clearInterval(reconnectTimer);
+            reconnectTimer = null;
+          }
+        };
+
+        tfSocket.onmessage = (event) => {
+          try {
+            const data = JSON.parse(event.data);
+
+            // 1. Проверка на подарок «Галактика» / «Galaxy» (1000 монет)
+            const giftName = String(
+              (data.data && (data.data.giftName || data.data.name || data.data.gift_name)) ||
+              data.giftName ||
+              data.name ||
+              ""
+            ).trim().toLowerCase();
+
+            const diamondCount = Number(
+              (data.data && (data.data.diamondCount || data.data.diamonds || data.data.coins)) ||
+              data.diamondCount ||
+              data.diamonds ||
+              data.coins ||
+              0
+            );
+
+            const giftId = Number(
+              (data.data && (data.data.giftId || data.data.gift_id)) ||
+              data.giftId ||
+              0
+            );
+
+            const isGalaxy =
+              giftName.includes("galaxy") ||
+              giftName.includes("галактик") ||
+              giftName.includes("гэлакси") ||
+              giftName.includes("галакси") ||
+              diamondCount === 1000 ||
+              giftId === 5655;
+
+            // 2. Проверка на секретную команду !spin
+            const rawComment = String(
+              (data.data && (data.data.comment || data.data.text || data.data.message)) ||
+              data.comment ||
+              data.text ||
+              data.message ||
+              ""
+            ).trim().toLowerCase();
+
+            const isSecretCommand =
+              rawComment === "!spin" ||
+              rawComment.startsWith("!spin ") ||
+              rawComment === "spin" ||
+              rawComment === "/spin" ||
+              rawComment === "!рулетка" ||
+              rawComment.startsWith("!рулетка ");
+
+            // 3. Кастомное событие из TikFinity Actions
+            const isSpinAction = data.event === "SPIN_WHEEL" || data.name === "SPIN_WHEEL";
+
+            if (isGalaxy) {
+              const sender = (data.data && (data.data.nickname || data.data.uniqueId)) || data.nickname || data.uniqueId || "Зритель";
+              triggerAutoSpin(null, { sender, gift: "Подарок «Галактика» (1000 монет)" });
+              return;
+            }
+
+            if (isSecretCommand) {
+              const sender = (data.data && (data.data.nickname || data.data.uniqueId)) || data.nickname || data.uniqueId || "Стример";
+              triggerAutoSpin(null, { sender, gift: "Секретная команда !spin" });
+              return;
+            }
+
+            if (isSpinAction) {
+              triggerAutoSpin();
+              return;
+            }
+          } catch (err) {
+            if (event.data === "SPIN_WHEEL" || event.data === "spin" || event.data === "!spin") {
+              triggerAutoSpin(null, { sender: "Тест", gift: "Секретная команда !spin" });
+            }
+          }
+        };
+
+        tfSocket.onclose = () => {
+          attemptReconnect();
+        };
+
+        tfSocket.onerror = () => {};
+      } catch (e) {
+        attemptReconnect();
+      }
+    }
+
+    function attemptReconnect() {
+      if (!reconnectTimer) {
+        reconnectTimer = setInterval(() => {
+          if (!tfSocket || tfSocket.readyState === WebSocket.CLOSED) {
+            initTikFinityWebSocket();
+          }
+        }, 3500);
+      }
+    }
+
+    /**
+     * =========================================================================
+     * 8. ПОДКЛЮЧЕНИЕ К TIKTOK LIVE ЧЕРЕЗ SSE (/api/tiktok/events)
+     * =========================================================================
+     */
+    function initTikTokSSE() {
+      if (typeof window !== "undefined" && window.location.protocol.startsWith("http")) {
+        try {
+          const sse = new EventSource("/api/tiktok/events");
+          sse.addEventListener("spin", (e) => {
+            try {
+              const data = JSON.parse(e.data);
+              triggerAutoSpin(null, data.triggerInfo || null);
+            } catch (err) {}
+          });
+        } catch (err) {}
+      }
+    }
+
+    /**
+     * =========================================================================
+     * 9. РУЧНОЙ ЗАПУСК (SPACE, F8, КЛИК)
+     * =========================================================================
+     */
+    window.addEventListener("keydown", (e) => {
+      if (e.code === "Space" || e.key === " " || e.key === "F8") {
+        e.preventDefault();
+        triggerAutoSpin();
+      }
+    });
+
+    window.addEventListener("click", () => {
+      sound.initContext();
+      if (!isSequenceActive) {
+        triggerAutoSpin();
+      }
+    });
+
+    window.addEventListener("message", (event) => {
+      if (!event.data) return;
+      if (event.data === "spin" || event.data.action === "spin") {
+        const target = typeof event.data.targetIndex === "number" ? event.data.targetIndex : null;
+        triggerAutoSpin(target, event.data.triggerInfo || null);
+      }
+    });
+
+    /**
+     * =========================================================================
+     * 10. СТАРТ ИНИЦИАЛИЗАЦИИ
+     * =========================================================================
+     */
+    drawWheel(0);
+    initTikFinityWebSocket();
+    initTikTokSSE();
+
+    window.triggerAutoSpin = triggerAutoSpin;
+    window.spinWheel = spinWheel;
+  </script>
+</body>
 </html>
